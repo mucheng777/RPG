@@ -36,7 +36,7 @@ public class ThirdPersonMode : MonoBehaviour
 
             transform.rotation = Quaternion.Euler(0.0f,rotation,0.0f);
             Vector3 targetDir = Quaternion.Euler(0.0f,_targetRot,0.0f)*Vector3.forward;
-            velocity += targetDir.normalized * (speed * Time.deltaTime);
+            velocity += targetDir.normalized * speed;
         } 
         //移动玩家
         _controller.Move(velocity);

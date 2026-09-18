@@ -5,102 +5,153 @@ public class PlayerLocomotion : MonoBehaviour
 {
     private CharacterController _controller;
     private Transform _cameraTransform;
-    private PlayerAnimator _playerAnimator;
 
     [Header("移动")]
-    public float walkSpeed = 3f;
+    public float walkSpeed = 4f;
     public float sprintSpeed = 6f;
     public float rotationSmoothTime = 0.15f;
     public float gravity = -9.81f;
 
-    // 输入
     private Vector2 _moveInput;
     private bool _isSprinting;
 
-    // 移动计算
     private float _currentMaxSpeed;
     private float _targetRot;
     private float _rotationVelocity;
     private float _verticalVelocity;
     private float _cachedCameraYaw;
 
+    private bool _wasMoving;
+    private bool _wasSprinting;
+    private bool _isInStopAnimation;
+
+    // ===== 事件声明 =====
+    public event System.Action OnStartMoving;       //开始移动事件
+    public event System.Action<bool> OnStopMoving;  //停止移动事件
+    public event System.Action OnForceCancelStop;   //停止之后播放停止动画，但是如果在这期间移动了就要立即取消停止动画，发送取消停止动画事件
+
     void Awake()
     {
         _controller = GetComponent<CharacterController>();
-        _cameraTransform = Camera.main.transform;
-        _playerAnimator = GetComponent<PlayerAnimator>();
+        _cameraTransform = Camera.main.transform;//代码读取相机位置，用来计算角色朝向
     }
 
-    // ===== 主脚本PlayerController调用 =====
+    public void SetStopAnimating(bool value) => _isInStopAnimation = value;
     public void SetMoveInput(Vector2 input) => _moveInput = input;
     public void SetSprint(bool value) => _isSprinting = value;
 
+    public bool IsMoving => _moveInput != Vector2.zero;
+    public bool IsSprinting => _isSprinting;
+    public float WalkSpeed => walkSpeed;
+    public float SprintSpeed => sprintSpeed;
+
+    //======================主逻辑================================
     public void UpdateLocomotion()
     {
-        // 缓存相机朝向
-        if (_cameraTransform != null)
-            _cachedCameraYaw = _cameraTransform.eulerAngles.y;
-
+        CacheCameraYaw();
         GroundCheck();
         ApplyGravity();
-        _currentMaxSpeed = _isSprinting ? sprintSpeed : walkSpeed;
 
-        if (_moveInput != Vector2.zero)
+        // 停步锁
+        if (ProcessStopAnimationLock())
+            return;
+
+        UpdateTargetSpeed();
+
+        Vector3 finalMove = Vector3.zero;
+
+        if (IsMoving)
         {
             Rotate();
-            Move();
+            finalMove += GetHorizontalMove();
         }
         else
         {
             _targetRot = transform.eulerAngles.y;
         }
 
-        // 重力
-        _controller.Move(Vector3.up * _verticalVelocity * Time.deltaTime);
-    }
-    // ===== 主脚本PlayerController调用 =====
+        finalMove.y = _verticalVelocity;
 
-    // ===== 给 PlayerAnimator 调用 =====
-    public float GetCurrentSpeed()
+        _controller.Move(finalMove * Time.deltaTime);
+
+        UpdateMoveStateAndNotify();
+    }
+    //======================================================================
+
+    private void CacheCameraYaw()
     {
-        return _moveInput != Vector2.zero ? _currentMaxSpeed : 0f;
+        if (_cameraTransform != null)
+            _cachedCameraYaw = _cameraTransform.eulerAngles.y;
     }
-    // ===== 给 PlayerAnimator 调用 =====
 
+    private bool ProcessStopAnimationLock()
+    {
+        if (!_isInStopAnimation) return false;
 
+        if (!_wasMoving && IsMoving)
+        {
+            _isInStopAnimation = false;
+            OnForceCancelStop?.Invoke();
+            OnStartMoving?.Invoke();
+            _wasMoving = true;
+            _wasSprinting = _isSprinting;
+            return false;
+        }
+        else
+        {
+            _moveInput = Vector2.zero;
+            _currentMaxSpeed = 0f;
+            _targetRot = transform.eulerAngles.y;
 
+            // 停步锁定期间也要 Move（只处理重力），但只调用一次
+            _controller.Move(Vector3.up * _verticalVelocity * Time.deltaTime);
 
+            _wasMoving = false;
+            _wasSprinting = false;
+            return true;
+        }
+    }
 
+    private void UpdateTargetSpeed()
+    {
+        _currentMaxSpeed = _isSprinting ? sprintSpeed : walkSpeed;
+    }
 
+    /// <summary>
+    /// 只计算水平移动向量，不调用 Move
+    /// </summary>
+    private Vector3 GetHorizontalMove()
+    {
+        Vector3 inputDir = new Vector3(_moveInput.x, 0f, _moveInput.y).normalized;
+        Vector3 moveDir = Quaternion.Euler(0f, _cachedCameraYaw, 0f) * inputDir;
+        return moveDir * _currentMaxSpeed;
+    }
 
+    private void UpdateMoveStateAndNotify()
+    {
+        bool isMovingNow = IsMoving;
 
+        if (!_wasMoving && isMovingNow)
+        {
+            OnStartMoving?.Invoke();
+        }
+        else if (_wasMoving && !isMovingNow)
+        {
+            OnStopMoving?.Invoke(_wasSprinting);
+        }
 
+        _wasMoving = isMovingNow;
+        _wasSprinting = _isSprinting;
+    }
 
     void Rotate()
     {
         Vector3 inputDir = new Vector3(_moveInput.x, 0f, _moveInput.y).normalized;
         _targetRot = Mathf.Atan2(inputDir.x, inputDir.z) * Mathf.Rad2Deg + _cachedCameraYaw;
-
-        float rot = Mathf.SmoothDampAngle(
-            transform.eulerAngles.y,
-            _targetRot,
-            ref _rotationVelocity,
-            rotationSmoothTime
-        );
+        float rot = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRot, ref _rotationVelocity, rotationSmoothTime);
         transform.rotation = Quaternion.Euler(0f, rot, 0f);
     }
 
-    // ===== 移动 =====
-    void Move()
-    {
-        Vector3 inputDir = new Vector3(_moveInput.x, 0f, _moveInput.y).normalized;
-        Vector3 moveDir = Quaternion.Euler(0f, _cachedCameraYaw, 0f) * inputDir;
-        Vector3 velocity = moveDir * _currentMaxSpeed;
-        velocity.y = _verticalVelocity;
-        _controller.Move(velocity * Time.deltaTime);
-    }
-
-    // ===== 物理 =====
     void GroundCheck()
     {
         if (_controller.isGrounded && _verticalVelocity < 0)

@@ -28,12 +28,19 @@ public class PlayerLocomotion : MonoBehaviour
     // ===== 事件声明 =====
     public event System.Action OnStartMoving;       //开始移动事件
     public event System.Action<bool> OnStopMoving;  //停止移动事件
-    public event System.Action OnForceCancelStop;   //停止之后播放停止动画，但是如果在这期间移动了就要立即取消停止动画，发送取消停止动画事件
+    public event System.Action OnForceCancelStop;   //强制取消停止动画事件
 
     void Awake()
     {
         _controller = GetComponent<CharacterController>();
-        _cameraTransform = Camera.main.transform;//代码读取相机位置，用来计算角色朝向
+
+        // 如果 Inspector 里没拖相机，就自动找主相机
+        if (_cameraTransform == null)
+        {
+            var mainCam = Camera.main;
+            if (mainCam != null)
+                _cameraTransform = mainCam.transform;
+        }
     }
 
     public void SetStopAnimating(bool value) => _isInStopAnimation = value;
@@ -78,10 +85,15 @@ public class PlayerLocomotion : MonoBehaviour
     }
     //======================================================================
 
+    /// <summary>
+    /// 直接拿相机的 Y 轴旋转当 Yaw，简单够用
+    /// </summary>
     private void CacheCameraYaw()
     {
         if (_cameraTransform != null)
             _cachedCameraYaw = _cameraTransform.eulerAngles.y;
+        else
+            _cachedCameraYaw = transform.eulerAngles.y; // fallback 到自己
     }
 
     private bool ProcessStopAnimationLock()
@@ -103,7 +115,7 @@ public class PlayerLocomotion : MonoBehaviour
             _currentMaxSpeed = 0f;
             _targetRot = transform.eulerAngles.y;
 
-            // 停步锁定期间也要 Move（只处理重力），但只调用一次
+            // 停步锁定期间只处理重力
             _controller.Move(Vector3.up * _verticalVelocity * Time.deltaTime);
 
             _wasMoving = false;
@@ -126,6 +138,7 @@ public class PlayerLocomotion : MonoBehaviour
         Vector3 moveDir = Quaternion.Euler(0f, _cachedCameraYaw, 0f) * inputDir;
         return moveDir * _currentMaxSpeed;
     }
+
 
     private void UpdateMoveStateAndNotify()
     {

@@ -5,6 +5,7 @@ public class PlayerController : MonoBehaviour
 {
     public PlayerLocomotion _locomotion;
     public PlayerAnimator _animator;
+    public PlayerCombat _combat;
 
     //引用PlayerControls类，也就是输入系统
     private PlayerControls input;
@@ -13,6 +14,7 @@ public class PlayerController : MonoBehaviour
     {
         _locomotion = GetComponent<PlayerLocomotion>();
         _animator = GetComponent<PlayerAnimator>();
+        _combat = GetComponent<PlayerCombat>();
         input = new PlayerControls();
     }
 
@@ -28,8 +30,8 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        // 每帧直接读值，没输入就是 Vector2.zero / 0
-        Vector2 move = input.Player.Move.ReadValue<Vector2>();
+        // 攻击期间锁定移动输入，避免 ProcessStopAnimationLock 自动解锁
+        Vector2 move = (_combat != null && _combat.IsAttacking) ? Vector2.zero : input.Player.Move.ReadValue<Vector2>();
         _locomotion.SetMoveInput(move);
 
         float sprint = input.Player.Sprint.ReadValue<float>();
@@ -37,5 +39,10 @@ public class PlayerController : MonoBehaviour
 
         _locomotion.UpdateLocomotion();
         _animator.UpdateAnimParams();
+
+        // 攻击输入与连击更新
+        if (input.Player.Fire.WasPressedThisFrame())
+            _combat?.TryAttack();
+        _combat?.UpdateAttack();
     }
 }

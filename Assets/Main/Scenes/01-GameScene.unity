@@ -2847,7 +2847,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5ce260747d9e0b840a75528f52c2ce06, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attackCooldown: 1.5
+  comboWindowStart: 0.4
+  endThreshold: 0.3
 --- !u!114 &2108785365
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2862,6 +2863,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _locomotion: {fileID: 2108785366}
   _animator: {fileID: 2108785363}
+  _combat: {fileID: 0}
 --- !u!114 &2108785366
 MonoBehaviour:
   m_ObjectHideFlags: 0

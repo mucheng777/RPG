@@ -64,6 +64,6 @@ public class SlopeProfile : ScriptableObject
         castDistance = Mathf.Max(0.05f, castDistance);
         castRadiusFactor = Mathf.Clamp(castRadiusFactor, 0.1f, 0.99f);
         fallbackRadius = Mathf.Max(0.05f, fallbackRadius);
-        fallbackOriginHeight = Mathf.Max(0f, fallbackOriginHeight);
+        fallbackOriginHeight = Mathf.Max(0f, fallbackOriginHeight); 
     }
 }

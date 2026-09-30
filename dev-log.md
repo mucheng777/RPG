@@ -58,3 +58,5 @@ PlayerCombat脚本里面的inEnd用来检测End动画是否播放的那块通过
 终极解决方案：使用动画事件（Animation Event）
 弃用 normalizedTime 轮询，直接让动画在精确的帧通知代码。
 这个要大改，所以先git一下
+### 新问题
+这个攻击完和end动画连一起不行，必须拆开，end作为静止的修饰，播放完攻击之后限定时间内没别的动作就播放end收刀

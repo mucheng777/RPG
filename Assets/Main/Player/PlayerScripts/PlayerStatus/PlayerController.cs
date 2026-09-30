@@ -10,6 +10,14 @@ public class PlayerController : MonoBehaviour
     //引用PlayerControls类，也就是输入系统
     private PlayerControls input;
 
+    public bool IsMoving => input.Player.Move.ReadValue<Vector2>().magnitude > 0.1f;
+
+    /// <summary>
+    /// 真实的移动输入意图（不归零）。
+    /// 用于 PlayerCombat 判断"玩家是否想移动"，即使攻击期间 move 被归零传给 Locomotion。
+    /// </summary>
+    public Vector2 MoveIntent => input.Player.Move.ReadValue<Vector2>();
+
     void Awake()
     {
         _locomotion = GetComponent<PlayerLocomotion>();

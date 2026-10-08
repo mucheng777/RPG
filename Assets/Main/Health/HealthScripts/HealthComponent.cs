@@ -2,31 +2,41 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// 通用血量组件，实现 IHealthProvider + IDamageable。
-/// 玩家和敌人都可以直接挂这个组件，也可继承后加专属逻辑
-/// （见 PlayerHealth / EnemyHealth）。
+/// 生命值数据管理组件（玩家/敌人通用基础组件）。
+/// 同时实现两个职责分离的接口：
+///   IHealthSystem —— 对外只读状态 + 事件 + 治疗（UI/技能系统使用）
+///   IDamageable   —— 受伤入口（攻击系统使用）
 ///
 /// 设计要点：
-///   1. 事件驱动：血量变化时主动通知 UI，而非 UI 每帧轮询（性能+解耦）
-///   2. 死亡锁：死后 TakeDamage 直接 return，防止重复触发 OnDied
-///   3. virtual 方法：子类可 override 加专属逻辑（无敌帧、护盾、受击硬直等）
+///   1. 单一受伤入口：所有伤害必须走 TakeDamage(DamageInfo)，
+///      外部无法直接写 CurrentHealth，保证扣血必经计算/校验/事件链路。
+///   2. 事件驱动观察者：血量变化 → OnHealthChanged，UI 自动刷新，逻辑层不引用任何 UI。
+///   3. 边界条件：伤害合法性校验、血量钳制 [0, MaxHealth]、死亡锁（只死一次）。
+///   4. 开闭原则：ModifyIncomingDamage / HandleDeath 为 protected virtual，
+///      子类（PlayerHealth 无敌帧、EnemyHealth 死亡动画、护盾组件）直接扩展，不改本类。
 /// </summary>
-public class HealthComponent : MonoBehaviour, IHealthProvider, IDamageable
+public class HealthComponent : MonoBehaviour, IHealthSystem, IDamageable
 {
     [SerializeField] protected HealthProfile profile;
+
+    [Header("防御")]
+    [Tooltip("护甲值：100 点 = 50% 减伤（边际递减公式）。以后可被装备/buff 动态修改。")]
+    [Min(0f)]
+    [SerializeField] protected float armor;
 
     protected float _currentHealth;
     protected bool _isAlive = true;
 
-    // ===== IHealthProvider =====
+    // ==================== IHealthSystem ====================
     public float MaxHealth => profile != null ? profile.maxHealth : 100f;
     public float CurrentHealth => _currentHealth;
     public bool IsAlive => _isAlive;
+    public float Armor => Mathf.Max(0f, armor);
 
     public event Action<float, float> OnHealthChanged;
     public event Action OnDied;
 
-    // ===== IDamageable =====
+    // ==================== IDamageable ====================
     public event Action<DamageInfo> OnDamaged;
 
     void Awake()
@@ -36,23 +46,44 @@ public class HealthComponent : MonoBehaviour, IHealthProvider, IDamageable
 
     void Start()
     {
-        // 初始化时通知 UI 显示满血
+        // 显式初始化协议：所有 Awake 完成后再广播初始值，
+        // 此时 UI 的 OnEnable 订阅必然已完成，消除两者 Start 先后顺序的不确定性。
         OnHealthChanged?.Invoke(_currentHealth, MaxHealth);
     }
 
+    // ==================== 受伤管线 ====================
+
     /// <summary>
-    /// 承受伤害。子类可通过 override 加入无敌帧、护盾减伤等前置逻辑。
+    /// 唯一受伤入口。调用链：
+    /// 合法性校验 → 死亡锁 → 伤害修正(护甲/护盾) → 钳制扣血 → 事件通知 → 死亡判定
     /// </summary>
     public virtual void TakeDamage(DamageInfo info)
     {
-        if (!IsAlive) return;
+        // 边界条件 1：数值合法性（NaN/负数/0 直接拒绝）
+        if (!DamageCalculator.IsValidDamage(info.Amount))
+        {
+            Debug.LogWarning($"[Health] 非法伤害值 {info.Amount}，已忽略。", this);
+            return;
+        }
 
-        _currentHealth = Mathf.Max(0f, _currentHealth - info.Amount);
+        // 边界条件 2：死亡锁，死后不再结算任何伤害
+        if (!_isAlive) return;
+
+        // 伤害修正：默认走护甲公式，True 伤害无视护甲；
+        // 护盾/无敌帧/格挡由子类 override 本方法或 ModifyIncomingDamage 实现
+        float finalDamage = info.Type == DamageType.True
+            ? info.Amount
+            : ModifyIncomingDamage(info.Amount);
+
+        // 修正后伤害为 0（如护盾完全抵消）→ 不扣血、不触发受击事件
+        if (finalDamage <= 0f) return;
+
+        _currentHealth = Mathf.Max(0f, _currentHealth - finalDamage);
 
         OnDamaged?.Invoke(info);
         OnHealthChanged?.Invoke(_currentHealth, MaxHealth);
 
-        if (_currentHealth <= 0f && _isAlive)
+        if (_currentHealth <= 0f)
         {
             _isAlive = false;
             OnDied?.Invoke();
@@ -60,16 +91,33 @@ public class HealthComponent : MonoBehaviour, IHealthProvider, IDamageable
         }
     }
 
+    /// <summary>
+    /// 承伤修正钩子（模板方法模式）。
+    /// 子类重写示例：
+    ///   - 护盾优先：先扣护盾值，溢出部分 base.ModifyIncomingDamage(remain)
+    ///   - 临时减伤：return base.ModifyIncomingDamage(raw) * 0.5f
+    /// </summary>
+    protected virtual float ModifyIncomingDamage(float rawDamage)
+        => DamageCalculator.Calculate(rawDamage, Armor);
+
+    // ==================== 治疗 ====================
+
     public virtual void Heal(float amount)
     {
-        if (!IsAlive) return;
+        if (!_isAlive) return;
+        if (!DamageCalculator.IsValidDamage(amount)) return;
+
+        float before = _currentHealth;
         _currentHealth = Mathf.Min(MaxHealth, _currentHealth + amount);
-        OnHealthChanged?.Invoke(_currentHealth, MaxHealth);
+
+        // 满血时不产生无意义的事件
+        if (!Mathf.Approximately(before, _currentHealth))
+            OnHealthChanged?.Invoke(_currentHealth, MaxHealth);
     }
 
     /// <summary>
-    /// 死亡后的默认处理：延迟销毁。
-    /// 子类可 override 改为播放死亡动画、掉落物品等。
+    /// 死亡处理钩子。默认按 Profile 延迟销毁；
+    /// 子类可 override 为播放死亡动画、掉落、通知 AI 状态机等。
     /// </summary>
     protected virtual void HandleDeath()
     {

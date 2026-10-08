@@ -12,11 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d93b0fc8528ab6940b9f2d612eb9ba5f, type: 3}
   m_Name: EnemyProfile
   m_EditorClassIdentifier: 
-  maxHealth: 50
+  healthProfile: {fileID: 11400000, guid: 0d4d02de1eab6bd45b2432df40537301, type: 2}
   moveSpeed: 2
   attackDamage: 10
   attackInterval: 2
   attackRange: 1.5
   chaseRange: 8
   loseTargetRange: 12
-  destroyDelay: 2

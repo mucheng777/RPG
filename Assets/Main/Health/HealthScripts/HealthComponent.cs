@@ -116,6 +116,13 @@ public class HealthComponent : MonoBehaviour, IHealthSystem, IDamageable
     }
 
     /// <summary>
+    /// 子类专用：手动广播当前血量。
+    /// 用于"不走 Awake/Start 初始化"的路径——对象池复活时组件是复用的，
+    /// Awake/Start 不会再次执行，需要复活方重置数据后手动通知 UI 同步。
+    /// </summary>
+    protected void NotifyHealthChanged() => OnHealthChanged?.Invoke(_currentHealth, MaxHealth);
+
+    /// <summary>
     /// 死亡处理钩子。默认按 Profile 延迟销毁；
     /// 子类可 override 为播放死亡动画、掉落、通知 AI 状态机等。
     /// </summary>

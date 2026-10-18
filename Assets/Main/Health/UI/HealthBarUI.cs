@@ -46,6 +46,7 @@ public class HealthBarUI : MonoBehaviour
     private float _ghostFill = 1f;
     private float _ghostTimer;
     private bool _initialized;
+    private bool _hidden;
 
     void Awake()
     {
@@ -74,6 +75,9 @@ public class HealthBarUI : MonoBehaviour
     /// <summary>事件回调：只更新"目标值"，真正的动画在 Update 里插值</summary>
     private void OnHealthChanged(float current, float max)
     {
+        // 死亡时血条被隐藏；复活（血量事件再次到来）时自动恢复显示，避免复活后血条不可见
+        if (_hidden) ShowBar();
+
         float ratio = max > 0f ? Mathf.Clamp01(current / max) : 0f;
 
         // 首次同步：立即对齐，不播从 0 开始的错误动画（规避 Start 顺序问题）
@@ -137,6 +141,8 @@ public class HealthBarUI : MonoBehaviour
 
     private void HideBar()
     {
+        _hidden = true;
+
         // 用 CanvasGroup 隐藏而不是 SetActive：避免组件失活导致 Update/重订阅异常
         if (_canvasGroup != null)
         {
@@ -147,6 +153,23 @@ public class HealthBarUI : MonoBehaviour
         {
             if (fillImage != null) fillImage.enabled = false;
             if (ghostImage != null) ghostImage.enabled = false;
+        }
+    }
+
+    /// <summary>重新显示血条（复活时由新的血量事件触发，见 OnHealthChanged）</summary>
+    private void ShowBar()
+    {
+        _hidden = false;
+
+        if (_canvasGroup != null)
+        {
+            _canvasGroup.alpha = 1f;
+            _canvasGroup.blocksRaycasts = true;
+        }
+        else
+        {
+            if (fillImage != null) fillImage.enabled = true;
+            if (ghostImage != null) ghostImage.enabled = true;
         }
     }
 }

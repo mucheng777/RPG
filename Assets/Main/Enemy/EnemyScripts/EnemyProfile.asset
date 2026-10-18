@@ -16,6 +16,6 @@ MonoBehaviour:
   moveSpeed: 2
   attackDamage: 10
   attackInterval: 2
-  attackRange: 1.5
+  attackRange: 2.5
   chaseRange: 8
   loseTargetRange: 12

@@ -1,37 +1,17 @@
 using UnityEngine;
 
 /// <summary>
-/// 敌人控制器（木桩版）。
+/// 敌人装配根（组件职责说明，不含运行时逻辑）。
 ///
-/// 当前阶段：只做"能被打的死物"，伤害管线跑通用。
-/// 以后扩展 AI 时，在此加状态机：
-///   - EnemyState（基类）
-///   - IdleState / PatrolState / ChaseState / AttackState / HurtState / DeadState
-/// 感知系统接口化（ITargetProvider），不硬编码玩家引用。
+/// 敌人由三个独立组件协作，各自单一职责：
+///   EnemyBrain  —— AI 状态机（追击/攻击），参数读 EnemyProfile
+///   EnemyHealth —— 血量与死亡，参数读 HealthProfile（Inspector 直接拖资产，
+///                  与玩家共用同一配置类型；EnemyProfile.healthProfile 只作统一出口供外部系统读取）
+///   AttackHitDetection / 玩家攻击 —— 通过 IDamageable 接口命中敌人，与本类无关
 ///
-/// 注意：不依赖 PlayerController，通过 ITargetProvider 获取目标。
+/// 保留本空壳的原因：场景中敌人已挂本组件，作为"这是一个敌人"的语义标记；
+/// 以后的跨组件协调逻辑（如死亡掉落订阅 OnDied）挂在在此处。
 /// </summary>
 public class EnemyController : MonoBehaviour
 {
-    [Tooltip("敌人配置")]
-    [SerializeField] private EnemyProfile profile;
-
-    // ===== 以后扩展用（当前留空）=====
-    // private EnemyBrain _brain;
-    // private ITargetProvider _targetProvider;
-
-    void Awake()
-    {
-        // 把 EnemyProfile 的血量同步到 EnemyHealth
-        var health = GetComponent<EnemyHealth>();
-        if (health != null && profile != null)
-        {
-            // HealthComponent 读的是 HealthProfile，这里做桥接：
-            // 如果敌人用 EnemyProfile 而非 HealthProfile，需要手动设置血量
-            // 简单做法：让 EnemyHealth override Awake 读 EnemyProfile
-        }
-    }
-
-    // 以后 AI 的 Update 入口
-    // void Update() { _brain?.Tick(); }
 }

@@ -67,20 +67,30 @@ public class ThirdPersonCamera : MonoBehaviour
     {
         if (followTarget == null) return;
 
-        // 1. 读输入
+        // 1. 读输入（防御性校验：输入系统在场景重载时序下可能产生 NaN/Infinity）
         Vector2 look = input.Player.Look.ReadValue<Vector2>();
+        if (!IsValid(look)) look = Vector2.zero;
 
         // 2. 算目标角度
         float targetYaw = _yaw + look.x * sensitivity;
         float targetPitch = _pitch - look.y * sensitivity;
         targetPitch = Mathf.Clamp(targetPitch, minPitch, maxPitch);
 
-        // 3. 平滑
+        // 3. 平滑（若状态已被污染，先复位角度与速度，避免 NaN 永久传播）
+        if (!IsValid(_yaw) || !IsValid(_pitch) || !IsValid(_yawVel) || !IsValid(_pitchVel))
+        {
+            _yaw = 0f; _pitch = 0f; _yawVel = 0f; _pitchVel = 0f;
+            targetYaw = 0f; targetPitch = 0f;
+        }
         _yaw = Mathf.SmoothDampAngle(_yaw, targetYaw, ref _yawVel, rotationSmoothTime);
         _pitch = Mathf.SmoothDampAngle(_pitch, targetPitch, ref _pitchVel, rotationSmoothTime);
 
-        // 4. 计算旋转
-        Quaternion rotation = Quaternion.Euler(_pitch, _yaw, 0f);
+        // 4. 计算旋转（Euler 输入必须为有限值，否则结果四元数模长≠1 触发断言）
+        Quaternion rotation;
+        if (IsValid(_yaw) && IsValid(_pitch))
+            rotation = Quaternion.Euler(_pitch, _yaw, 0f);
+        else
+            rotation = Quaternion.identity;
 
         // 5. 弹簧臂距离（带碰撞检测）
         float desiredDist = distance;
@@ -94,6 +104,7 @@ public class ThirdPersonCamera : MonoBehaviour
                 desiredDist = Mathf.Max(desiredDist, minDistance);
             }
         }
+        if (!IsValid(_distVel)) _distVel = 0f;
         _currentDist = Mathf.SmoothDamp(_currentDist, desiredDist, ref _distVel, 0.08f);
 
         // 6. 计算目标位置
@@ -101,9 +112,16 @@ public class ThirdPersonCamera : MonoBehaviour
         Vector3 targetPos = followTarget.position + Vector3.up * targetHeight + rotation * localOffset;
 
         // 7. 位置平滑
+        if (!IsValid(_currentPos) || !IsValid(_posVel))
+        {
+            _currentPos = followTarget.position + Vector3.up * targetHeight + rotation * localOffset;
+            _posVel = Vector3.zero;
+        }
         _currentPos = Vector3.SmoothDamp(_currentPos, targetPos, ref _posVel, positionSmoothTime);
 
-        // 8. 应用
+        // 8. 应用（最终防线：赋值前过滤 NaN/Infinity，杜绝向 transform 写入无效坐标）
+        if (!IsValid(_currentPos))
+            _currentPos = followTarget.position + Vector3.up * targetHeight - Vector3.forward * distance;
         transform.position = _currentPos;
         transform.rotation = rotation;
 
@@ -111,4 +129,12 @@ public class ThirdPersonCamera : MonoBehaviour
         Vector3 lookPoint = followTarget.position + Vector3.up * targetHeight;
         transform.LookAt(lookPoint);
     }
+
+    /// <summary>
+    /// 数值合法性校验：NaN 与 Infinity 均视为非法。
+    /// 用于过滤输入系统异常值、平滑过程污染值，防止向 transform 写入无效坐标。
+    /// </summary>
+    private static bool IsValid(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
+    private static bool IsValid(Vector2 v) => IsValid(v.x) && IsValid(v.y);
+    private static bool IsValid(Vector3 v) => IsValid(v.x) && IsValid(v.y) && IsValid(v.z);
 }

@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: de9e51af231510b4b862815afb24d192, type: 3}
+  m_Name: Item_AncientRelic
+  m_EditorClassIdentifier: 
+  itemId: Item_AncientRelic
+  displayName: "\u8FDC\u53E4\u9057\u7269"
+  description: "\u57FA\u7840\u6D4B\u8BD5\u7269\u54C1\uFF1A\u7A00\u6709\u4EFB\u52A1\u7269\u54C1\uFF0C\u4E0D\u53EF\u5806\u53E0\u3002\u7528\u4E8E\u9A8C\u8BC1\u7A00\u6709\u5EA6\u8FB9\u6846\u3002"
+  itemType: 30
+  maxStack: 1
+  rarityColor: {r: 0.95, g: 0.78, b: 0.3, a: 1}
+  icon: {fileID: 0}
+  iconColor: {r: 0.95, g: 0.78, b: 0.3, a: 1}
+  worldColor: {r: 0.95, g: 0.78, b: 0.3, a: 1}
+  worldPrefab: {fileID: 0}

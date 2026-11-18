@@ -303,6 +303,14 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 8894321360981226052}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: fb457ca2d6945ef4cb88291d406955d6,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5901234567890123451}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: fb457ca2d6945ef4cb88291d406955d6,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 653183889559318944}
   m_SourcePrefab: {fileID: 100100000, guid: fb457ca2d6945ef4cb88291d406955d6, type: 3}
 --- !u!1 &5167192318253392165 stripped
 GameObject:
@@ -341,12 +349,7 @@ MonoBehaviour:
     m_Bits: 64
   findTargetRadius: 100
   turnSpeed: 540
-  gravity: -20
-  groundCheckStart: 0.1
-  groundCheckDistance: 5
-  groundMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
+  repathInterval: 0.2
   debugLog: 1
 --- !u!114 &489297594584475259
 MonoBehaviour:
@@ -443,6 +446,44 @@ MonoBehaviour:
   projectileSpeed: 14
   spawnOffset: {x: 0, y: 1.2, z: 0.5}
   aimHeight: 1
+--- !u!195 &5901234567890123451
+NavMeshAgent:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5167192318253392165}
+  m_Enabled: 1
+  m_AgentTypeID: 0
+  m_Radius: 0.5
+  m_Speed: 3.5
+  m_Acceleration: 8
+  avoidancePriority: 50
+  m_AngularSpeed: 120
+  m_StoppingDistance: 0
+  m_AutoTraverseOffMeshLink: 1
+  m_AutoBraking: 1
+  m_AutoRepath: 1
+  m_Height: 2
+  m_BaseOffset: 0
+  m_WalkableMask: 4294967295
+  m_ObstacleAvoidanceType: 4
+--- !u!114 &653183889559318944
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5167192318253392165}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c40657984ed62214a8d00175bb1fba24, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lootTable: {fileID: 11400000, guid: c69c832ba9b7f3f48af2e36da9f55a94, type: 2}
+  dropDelay: 0
+  heightOffset: 0.6
+  debugLog: 1
 --- !u!4 &5547975857172036511 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: fb457ca2d6945ef4cb88291d406955d6,

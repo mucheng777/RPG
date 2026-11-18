@@ -614,6 +614,14 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 1521578838016090243}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e172106cd769b464ba3337ba291dc199,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5901234567890123452}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e172106cd769b464ba3337ba291dc199,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1244888285530817724}
   m_SourcePrefab: {fileID: 100100000, guid: e172106cd769b464ba3337ba291dc199, type: 3}
 --- !u!1 &4909425966813808404 stripped
 GameObject:
@@ -688,12 +696,7 @@ MonoBehaviour:
     m_Bits: 64
   findTargetRadius: 100
   turnSpeed: 540
-  gravity: -20
-  groundCheckStart: 0.1
-  groundCheckDistance: 2
-  groundMask:
-    serializedVersion: 2
-    m_Bits: 8
+  repathInterval: 0.2
   debugLog: 1
 --- !u!114 &1041248969565797230
 MonoBehaviour:
@@ -749,6 +752,44 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 51dc47dfd209dd54c96963576473ae4f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  debugLog: 1
+--- !u!195 &5901234567890123452
+NavMeshAgent:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4909425966813808404}
+  m_Enabled: 1
+  m_AgentTypeID: 0
+  m_Radius: 0.5
+  m_Speed: 3.5
+  m_Acceleration: 8
+  avoidancePriority: 50
+  m_AngularSpeed: 120
+  m_StoppingDistance: 0
+  m_AutoTraverseOffMeshLink: 1
+  m_AutoBraking: 1
+  m_AutoRepath: 1
+  m_Height: 2
+  m_BaseOffset: 0
+  m_WalkableMask: 4294967295
+  m_ObstacleAvoidanceType: 4
+--- !u!114 &1244888285530817724
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4909425966813808404}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c40657984ed62214a8d00175bb1fba24, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lootTable: {fileID: 11400000, guid: a05026ddc2a77c74d81d9d1ec7d9e53a, type: 2}
+  dropDelay: 0
+  heightOffset: 0.6
   debugLog: 1
 --- !u!4 &5722412988165807534 stripped
 Transform:

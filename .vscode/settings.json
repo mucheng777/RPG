@@ -1,4 +1,6 @@
 {
+    "editor.mouseWheelZoom": true,
+    "dotnet.defaultSolution": "RPG.sln",
     "files.exclude": {
         "**/.DS_Store": true,
         "**/.git": true,
@@ -50,6 +52,5 @@
         "ProjectSettings/": true,
         "temp/": true,
         "Temp/": true
-    },
-    "dotnet.defaultSolution": "RPG.sln"
+    }
 }

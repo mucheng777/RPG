@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 using System;
 
 /// <summary>
@@ -20,6 +21,11 @@ using System;
 ///   3. 攻击协议与玩家完全一致：只调 IDamageable.TakeDamage(DamageInfo)，
 ///      不感知 PlayerHealth 具体类（依赖倒置，与 AttackHitDetection 同一约定）。
 ///   4. 距离全部用平方距离比较，避免每帧开方。
+///   5. 移动交给 NavMeshAgent：Brain 只决定"何时走、去哪、何时停"，
+///      路径计算、贴地、爬坡、怪与怪之间的避障全部由 Agent 负责。
+///      Brain 与 Agent 之间只有三个接触点：SetDestination（告诉它去哪）、
+///      isStopped（走/停开关）、Warp（池复用时同步位置）。
+///      不再手写 transform.position 位移和重力——两套位移并存会互相拉扯导致抖动。
 ///
 /// 池化接入：实现 IPoolable，OnSpawned 复位状态机与计时器（由 PoolManager 取出对象时调用）。
 ///
@@ -29,6 +35,7 @@ using System;
 ///   - 攻击前摇：Attack 出手时机改由 Animation Event 驱动
 /// </summary>
 [RequireComponent(typeof(EnemyHealth))]
+[RequireComponent(typeof(NavMeshAgent))]
 [AddComponentMenu("RPG/Enemy/Enemy Brain")]
 public class EnemyBrain : MonoBehaviour, IPoolable
 {
@@ -49,32 +56,22 @@ public class EnemyBrain : MonoBehaviour, IPoolable
     [SerializeField] private float findTargetRadius = 100f;
 
     [Header("移动")]
-    [Tooltip("转向速度（度/秒），避免瞬间掉头")]
+    [Tooltip("转向速度（度/秒），同步给 Agent；攻击态原地转身也用它")]
     [SerializeField] private float turnSpeed = 540f;
 
-    [Header("重力/地面")]
-    [Tooltip("重力加速度（负数向下）")]
-    [SerializeField] private float gravity = -20f;
-
-    [Tooltip("地面检测起点：从脚下往上偏移多少米开始向下射，避免起点埋进地面")]
-    [SerializeField] private float groundCheckStart = 0.1f;
-
-    [Tooltip("地面检测距离")]
-    [SerializeField] private float groundCheckDistance = 5f;
-
-    [Tooltip("可作为地面的层（勾 Ground 和 Default，别勾 Enemy/Player）")]
-    [SerializeField] private LayerMask groundMask = (1 << 3);
+    [Tooltip("寻路目的地刷新间隔（秒）。玩家每帧都在动，但每帧 SetDestination 浪费，定期追一次就够")]
+    [SerializeField] private float repathInterval = 0.2f;
 
     [Header("调试")]
     [Tooltip("开发期打印状态切换/索敌/攻击日志，打包前关闭")]
     [SerializeField] private bool debugLog = true;
 
     private EnemyHealth _health;
+    private NavMeshAgent _agent;
     private State _state = State.Idle;
     private float _attackTimer;
     private float _distLogTimer;
-    private float _verticalVelocity; // 重力累计的垂直速度
-    private bool _isGrounded;        // 本帧是否接地
+    private float _repathTimer;
 
     // ==================== 对外事件（给 EnemyAnimator / 掉落 / 其他扩展） ====================
 
@@ -103,12 +100,20 @@ public class EnemyBrain : MonoBehaviour, IPoolable
     void Awake()
     {
         _health = GetComponent<EnemyHealth>();
+        _agent = GetComponent<NavMeshAgent>();
+
+        // 移动参数统一从 Profile 喂给 Agent，Inspector 里 Agent 的 Speed 只是占位值
+        if (profile != null) _agent.speed = profile.moveSpeed;
+        _agent.angularSpeed = turnSpeed;
+
+        // 停在哪里由状态机的 attackRange 决定，不让 Agent 自己提前减速刹停
+        _agent.stoppingDistance = 0f;
+        _agent.isStopped = true; // 出生默认 Idle，不寻路
     }
 
     void OnEnable()
     {
         if (_health != null) _health.OnDied += HandleDied;
-        _verticalVelocity = 0f;
     }
 
     void OnDisable()
@@ -119,14 +124,12 @@ public class EnemyBrain : MonoBehaviour, IPoolable
     void Start()
     {
         if (target == null) TryFindTarget();
+        WarnIfNotOnNavMesh();
     }
 
     void Update()
     {
         if (_state == State.Dead || profile == null) return;
-
-        // 重力在所有存活状态下生效（Idle/Chase/Attack 都要落地）
-        ApplyGravity();
 
         // 目标未指定且自动索敌失败 → 待机并持续重试（玩家可能尚未生成）
         if (target == null)
@@ -154,13 +157,28 @@ public class EnemyBrain : MonoBehaviour, IPoolable
 
     // ==================== 状态行为 ====================
 
-    /// <summary>统一的状态切换入口：集中打日志，排查"AI 没反应"类问题</summary>
+    /// <summary>统一的状态切换入口：集中打日志 + 集中管 Agent 的走/停</summary>
     private void SetState(State next)
     {
         if (_state == next) return;
         if (debugLog)
             Debug.Log($"[EnemyBrain] {name}: {_state} → {next}（距目标 {(target != null ? Vector3.Distance(transform.position, target.position).ToString("F1") : "无目标")}m）", this);
         _state = next;
+
+        // 移动开关集中在状态切换处：只有 Chase 让 Agent 跑，其余状态全部站定。
+        // 好处是"移动权限"只有一个真相源，不会出现某个状态忘了停。
+        if (_agent.isOnNavMesh)
+        {
+            _agent.isStopped = next != State.Chase;
+            // Chase 时让 Agent 沿路径自动转向；其余状态把旋转权交回 FaceTarget（攻击态要原地脸朝玩家）
+            _agent.updateRotation = next == State.Chase;
+
+            if (next == State.Chase)
+                _repathTimer = 0f;  // 进追击立刻刷一次目的地，不等下一个刷新周期
+            else
+                _agent.ResetPath(); // 清掉残路径，防止下次切回 Chase 时先走一截旧路
+        }
+
         StateChanged?.Invoke();
     }
 
@@ -197,7 +215,15 @@ public class EnemyBrain : MonoBehaviour, IPoolable
             }
         }
 
-        MoveTowardsTarget();
+        // 路径怎么绕、怎么贴地、怎么躲开其他怪，都是 Agent 的事；
+        // Brain 只定期告诉它"玩家现在在哪"。
+        _repathTimer -= Time.deltaTime;
+        if (_repathTimer <= 0f)
+        {
+            _repathTimer = repathInterval;
+            if (_agent.isOnNavMesh)
+                _agent.SetDestination(target.position);
+        }
     }
 
     private void TickAttack(float sqrDist)
@@ -232,45 +258,6 @@ public class EnemyBrain : MonoBehaviour, IPoolable
         AttackExecuted?.Invoke();
     }
 
-    private void MoveTowardsTarget()
-    {
-        FaceTarget();
-
-        Vector3 dir = target.position - transform.position;
-        dir.y = 0f; // 只在水平面追击，不平地地形由以后的地面吸附/导航处理
-        if (dir.sqrMagnitude < 0.0001f) return;
-
-        transform.position += dir.normalized * (profile.moveSpeed * Time.deltaTime);
-    }
-
-    /// <summary>
-    /// 手动重力：不引入 Rigidbody，避免和 transform.position 移动、后续路径算法冲突。
-    /// 接地时直接把 Y 贴到命中点，仅靠钳速度会慢慢穿过地面 Collider（无 Rigidbody 时物理不阻挡）。
-    /// </summary>
-    private void ApplyGravity()
-    {
-        // 地面检测：从脚下略上方往下射，避免起点埋进地面导致误判
-        Vector3 checkOrigin = transform.position + Vector3.up * groundCheckStart;
-        bool hitGround = Physics.Raycast(checkOrigin, Vector3.down, out RaycastHit hit,
-                                      groundCheckDistance, groundMask, QueryTriggerInteraction.Ignore);
-
-        _isGrounded = hitGround;
-
-        if (_isGrounded && _verticalVelocity <= 0f)
-        {
-            // 落地：直接贴到命中点 Y。无 Rigidbody 时物理不会阻挡，只钳速度会慢慢穿过地面
-            Vector3 pos = transform.position;
-            pos.y = hit.point.y;
-            transform.position = pos;
-            _verticalVelocity = 0f;
-        }
-        else
-        {
-            _verticalVelocity += gravity * Time.deltaTime;
-            transform.position += Vector3.up * _verticalVelocity * Time.deltaTime;
-        }
-    }
-
     private void FaceTarget()
     {
         Vector3 dir = target.position - transform.position;
@@ -298,6 +285,13 @@ public class EnemyBrain : MonoBehaviour, IPoolable
         SetState(State.Dead);
     }
 
+    /// <summary>不在 NavMesh 上时 Agent 会拒绝寻路，提前打日志省得对着"怪不动"发呆</summary>
+    private void WarnIfNotOnNavMesh()
+    {
+        if (!_agent.isOnNavMesh)
+            Debug.LogWarning($"[EnemyBrain] {name} 不在 NavMesh 上，无法追击。检查：1) 场景是否烘焙（NavMeshSurface → Bake）2) 出生点是否落在蓝色可行走区域内", this);
+    }
+
     // ==================== IPoolable（由 PoolManager 调用） ====================
 
     /// <summary>池取出时调用：回到 Idle、清攻击计时。血量重置由 EnemyHealth.OnSpawned 负责</summary>
@@ -305,7 +299,15 @@ public class EnemyBrain : MonoBehaviour, IPoolable
     {
         _state = State.Idle;
         _attackTimer = 0f;
-        _verticalVelocity = 0f;
+
+        // 池复用关键坑：池只 SetPositionAndRotation 改了 Transform，
+        // Agent 内部还记着上一世的位置，下一帧会把怪拉回原地（或路径瞬间乱掉）。
+        // Warp = 把 Agent 内部位置同步到当前 Transform，并吸附到最近的 NavMesh 点。
+        // 注意顺序：池是先改 Transform 再调 OnSpawned，所以这里读到的就是新出生点。
+        _agent.Warp(transform.position);
+        _agent.ResetPath();
+        _agent.isStopped = true;
+        WarnIfNotOnNavMesh();
     }
 
     /// <summary>回收进池前调用：当前无运行期外部引用需要清理</summary>

@@ -200,46 +200,14 @@ public class Inventory : MonoBehaviour
         return moved;
     }
 
-    /// <summary>
-    /// 拆分：把该槽一半（向下取整）移到第一个空槽。
-    /// 没有空槽或数量小于 2 时失败。
-    /// </summary>
-    public bool SplitStack(int index)
-    {
-        InventorySlot slot = GetSlot(index);
-        if (slot == null || slot.IsEmpty || slot.Count < 2) return false;
-
-        int emptyIndex = FindFirstEmptyIndex();
-        if (emptyIndex < 0) return false;
-
-        int half = slot.Count / 2;
-        if (half <= 0) return false;
-
-        slots[emptyIndex].Item = slot.Item;
-        slots[emptyIndex].Count = half;
-        slot.Count -= half;
-
-        NotifyChanged();
-        return true;
-    }
-
-    public int FindFirstEmptyIndex()
-    {
-        for (int i = 0; i < slots.Count; i++)
-        {
-            if (slots[i].IsEmpty) return i;
-        }
-        return -1;
-    }
-
     // ==================== 转移（拖拽核心，支持跨容器） ====================
 
     /// <summary>
     /// 把 source 的 fromIndex 槽位中 count 个物品转移到 target 的 toIndex 槽位。
     /// 规则：
-    ///   - 目标为空：直接放入（整堆 = 移动，部分 = 拆分）；
+    ///   - 目标为空：直接放入（整堆 = 移动）；
     ///   - 目标同类：合并到目标堆，目标放不下的部分留在原位；
-    ///   - 目标不同类：只有"整堆转移"才交换（拖拽交换）；部分转移直接拒绝。
+    ///   - 目标不同类：只有"整堆转移"才交换（拖拽交换），部分转移直接拒绝。
     /// 返回是否发生了移动。跨背包（宝箱/商店）同样适用。
     /// </summary>
     public static bool Transfer(Inventory source, int fromIndex, Inventory target, int toIndex, int count)

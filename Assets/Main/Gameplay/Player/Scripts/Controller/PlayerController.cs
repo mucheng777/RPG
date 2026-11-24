@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
@@ -49,8 +50,15 @@ public class PlayerController : MonoBehaviour
         _animator.UpdateAnimParams();
 
         // 攻击输入与连击更新
-        if (input.Player.Fire.WasPressedThisFrame())
+        // 指针停在 UI 上时（点"开始游戏"、关闭背包等）不算攻击，否则点击按钮会顺带挥刀
+        if (input.Player.Fire.WasPressedThisFrame() && !IsPointerOverUI())
             _combat?.TryAttack();
         _combat?.UpdateAttack();
+    }
+
+    /// <summary>当前鼠标是否点在 UI 元素上（按钮、面板等）</summary>
+    private static bool IsPointerOverUI()
+    {
+        return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
     }
 }

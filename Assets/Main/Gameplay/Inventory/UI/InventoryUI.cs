@@ -1,18 +1,18 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
 /// 背包界面（表现层）—— 只做"展示 + 交互翻译"，所有数据变更都通过 Inventory 的公开 API 提交。
 ///
-/// 结构（运行时构建，零素材即可用）：
-///   遮罩 → 主面板 → 标题/容量/关闭 → 6 列网格（ScrollRect + GridLayoutGroup）
-///   → 右侧详情 → 底部整理按钮与操作提示 → 拖拽跟随图标
+/// 结构（界面全部在 Hierarchy 里搭建，本脚本只做接线）：
+///   InventorySystem（挂本脚本）→ 引用 Hierarchy 里的 Canvas 根节点；
+///   开关背包 = 显隐这个 Canvas 根节点，运行时不创建任何控件。
 ///
 /// 交互：
 ///   - Tab / I：打开、关闭背包
-///   - 左键拖拽：槽位间交换 / 合并；Shift + 拖拽 = 只拖一半
-///   - 右键：拆分一半到第一个空槽
+///   - 左键拖拽：移动到空槽 / 同类合并 / 不同类交换
 ///   - 拖入外部物品：调用 BeginExternalDrag(...)（宝箱/商店/装备栏的接入点）
 ///
 /// 与既有系统的耦合控制：
@@ -37,10 +37,7 @@ public class InventoryUI : MonoBehaviour
         }
     }
 
-    [Header("字体与按键")]
-    [Tooltip("UI 字体：推荐 Assets/Fonts/SourceHanSansSC-Regular.otf（留空则使用内置字体，中文可能缺字）")]
-    [SerializeField] private Font uiFont;
-
+    [Header("按键")]
     [Tooltip("开关背包按键")]
     [SerializeField] private KeyCode toggleKey = KeyCode.Tab;
 
@@ -54,19 +51,49 @@ public class InventoryUI : MonoBehaviour
     [Tooltip("打开背包时禁用玩家控制（避免点击 UI 同时挥砍）")]
     [SerializeField] private bool blockPlayerInputWhileOpen = true;
 
-    [Header("配色（占位美术，后续可整体替换）")]
-    [SerializeField] private Color panelColor = new Color(0.06f, 0.07f, 0.09f, 0.96f);
-    [SerializeField] private Color normalSlotColor = new Color(0.15f, 0.16f, 0.20f, 1f);
-    [SerializeField] private Color hoverSlotColor = new Color(0.23f, 0.25f, 0.31f, 1f);
-    [SerializeField] private Color emptyBorderColor = new Color(1f, 1f, 1f, 0.10f);
-    [SerializeField] private Color accentColor = new Color(0.36f, 0.78f, 0.55f, 1f);
-    [SerializeField] private Color textColor = new Color(0.92f, 0.94f, 0.96f, 1f);
-    [SerializeField] private Color mutedTextColor = new Color(0.62f, 0.66f, 0.72f, 1f);
+    [Header("界面引用（必填：把 Hierarchy 里的控件拖进来）")]
+    [Tooltip("整个背包界面的根节点（挂 Canvas 的物体）。开关背包时只显隐它，" +
+             "所以本脚本要挂在另一个常驻物体上，不能和它同一个物体")]
+    [SerializeField] private GameObject uiRoot;
 
-    // 槽位视图从 UI 拿配色，避免颜色散落在两个脚本里
-    public Color NormalSlotColor => normalSlotColor;
-    public Color HoverSlotColor => hoverSlotColor;
-    public Color EmptyBorderColor => emptyBorderColor;
+    [Tooltip("槽位父节点：必须挂 GridLayoutGroup，且不要预放示例槽位")]
+    [SerializeField] private RectTransform gridContent;
+
+    [Tooltip("容量文字，例如 3 / 24")]
+    [SerializeField] private TMP_Text capacityText;
+
+    [Tooltip("详情图标")]
+    [SerializeField] private Image detailIcon;
+
+    [Tooltip("详情标题")]
+    [SerializeField] private TMP_Text detailName;
+
+    [Tooltip("详情类型/数量")]
+    [SerializeField] private TMP_Text detailType;
+
+    [Tooltip("详情描述")]
+    [SerializeField] private TMP_Text detailDesc;
+
+    [Tooltip("拖拽时跟随鼠标的图标（要放在 Canvas 下面）")]
+    [SerializeField] private RectTransform dragGhost;
+
+    [Tooltip("拖拽图标里的物品图")]
+    [SerializeField] private Image dragGhostIcon;
+
+    [Tooltip("拖拽图标里的数量文字")]
+    [SerializeField] private TMP_Text dragGhostCount;
+
+    [Tooltip("关闭按钮")]
+    [SerializeField] private Button closeButton;
+
+    [Tooltip("按类型整理按钮")]
+    [SerializeField] private Button sortByTypeButton;
+
+    [Tooltip("按数量整理按钮")]
+    [SerializeField] private Button sortByCountButton;
+
+    [Tooltip("槽位预制体（必填）：每个格子实例化一份")]
+    [SerializeField] private InventorySlotView slotPrefab;
 
     public bool IsOpen => _isOpen;
 
@@ -78,21 +105,21 @@ public class InventoryUI : MonoBehaviour
     private Canvas _canvas;
     private GameObject _canvasRoot;
     private RectTransform _gridContent;
-    private Text _capacityText;
+    private TMP_Text _capacityText;
     private Image _detailIcon;
-    private Text _detailName;
-    private Text _detailType;
-    private Text _detailDesc;
+    private TMP_Text _detailName;
+    private TMP_Text _detailType;
+    private TMP_Text _detailDesc;
     private RectTransform _dragGhost;
     private Image _dragGhostIcon;
-    private Text _dragGhostCount;
+    private TMP_Text _dragGhostCount;
 
     private bool _isOpen;
     private int _detailIndex = -1;
     private float _prevTimeScale = 1f;
     private bool _playerInputBlocked;
-
-    private Font CurrentFont => uiFont != null ? uiFont : InventoryUIFactory.DefaultFont;
+    private Sprite _detailDefaultSprite;
+    private Sprite _dragGhostDefaultSprite;
 
     // ==================== 生命周期 ====================
 
@@ -105,7 +132,7 @@ public class InventoryUI : MonoBehaviour
         }
         _instance = this;
 
-        BuildUI();
+        BindUI();
     }
 
     void Start()
@@ -113,7 +140,7 @@ public class InventoryUI : MonoBehaviour
         _inventory = FindFirstObjectByType<Inventory>();
         if (_inventory == null)
         {
-            Debug.LogError("[InventoryUI] 场景中找不到 Inventory（背包）组件，请先运行 Tools/RPG/背包系统/一键搭建。", this);
+            Debug.LogError("[InventoryUI] 场景中找不到 Inventory（背包）组件，请确认背包数据所在的物体已挂 Inventory。", this);
             return;
         }
 
@@ -269,28 +296,16 @@ public class InventoryUI : MonoBehaviour
 
     private InventorySlotView CreateSlotView(int index)
     {
-        Image border = InventoryUIFactory.CreateImage($"Slot_{index:00}", _gridContent, emptyBorderColor,
-                                                      InventoryUIFactory.RoundedSprite, true);
-        border.raycastTarget = true; // 接收指针事件（拖拽/悬停/右键）
+        if (slotPrefab == null)
+        {
+            Debug.LogError("[InventoryUI] 没有指定槽位预制体（slotPrefab），背包里不会出现格子。", this);
+            return null;
+        }
 
-        Image background = InventoryUIFactory.CreateImage("Bg", border.transform, normalSlotColor,
-                                                         InventoryUIFactory.RoundedSprite, true);
-        InventoryUIFactory.Stretch(background.rectTransform, 2f, 2f, 2f, 2f);
-
-        Image icon = InventoryUIFactory.CreateImage("Icon", border.transform, Color.white,
-                                                    InventoryUIFactory.WhiteSprite);
-        RectTransform iconRect = icon.rectTransform;
-        iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.5f, 0.5f);
-        iconRect.pivot = new Vector2(0.5f, 0.5f);
-        iconRect.anchoredPosition = new Vector2(0f, 4f);
-        iconRect.sizeDelta = new Vector2(58f, 58f);
-
-        Text count = InventoryUIFactory.CreateText("Count", border.transform, CurrentFont, string.Empty,
-                                                   16, textColor, TextAnchor.LowerRight);
-        InventoryUIFactory.Stretch(count.rectTransform, 8f, 8f, 4f, 4f);
-
-        var view = border.gameObject.AddComponent<InventorySlotView>();
-        view.Setup(this, index, background, border, icon, count);
+        InventorySlotView view = Instantiate(slotPrefab, _gridContent);
+        view.gameObject.name = $"Slot_{index:00}";
+        view.gameObject.SetActive(true);
+        view.Bind(this, index);
         return view;
     }
 
@@ -313,7 +328,8 @@ public class InventoryUI : MonoBehaviour
         if (_detailIcon != null)
         {
             _detailIcon.enabled = true;
-            _detailIcon.sprite = slot.Item.icon != null ? slot.Item.icon : InventoryUIFactory.WhiteSprite;
+            // 没有图标就显示预制体里自带的占位图，再用物品颜色染色
+            _detailIcon.sprite = slot.Item.icon != null ? slot.Item.icon : _detailDefaultSprite;
             _detailIcon.color = slot.Item.icon != null ? Color.white : slot.Item.iconColor;
         }
 
@@ -345,8 +361,6 @@ public class InventoryUI : MonoBehaviour
         if (slot == null || slot.IsEmpty) return;
 
         int count = slot.Count;
-        if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
-            count = Mathf.Max(1, slot.Count / 2);
 
         ItemDragContext.Begin(slot.Item, count, _inventory, index);
         ShowDragGhost(slot.Item, count);
@@ -404,14 +418,7 @@ public class InventoryUI : MonoBehaviour
         EndDrag();
     }
 
-    /// <summary>右键拆分（由槽位调用）</summary>
-    public void RequestSplit(int index)
-    {
-        if (_inventory == null) return;
-        if (!_inventory.SplitStack(index))
-            Debug.Log("[InventoryUI] 拆分失败：数量不足或没有空槽。", this);
-    }
-
+    /// <summary>拖拽跟随图标</summary>
     private void ShowDragGhost(ItemDefinition item, int count)
     {
         if (_dragGhost == null || _dragGhostIcon == null) return;
@@ -419,190 +426,89 @@ public class InventoryUI : MonoBehaviour
         _dragGhost.gameObject.SetActive(true);
         _dragGhost.SetAsLastSibling();
 
-        _dragGhostIcon.sprite = item.icon != null ? item.icon : InventoryUIFactory.WhiteSprite;
+        // 跟随图标绝不能参与射线检测：否则它会挡住指针下方的槽位，导致 OnDrop 收不到、放不下去
+        foreach (Graphic graphic in _dragGhost.GetComponentsInChildren<Graphic>(true))
+            graphic.raycastTarget = false;
+
+        _dragGhostIcon.sprite = item.icon != null ? item.icon : _dragGhostDefaultSprite;
         _dragGhostIcon.color = item.icon != null ? Color.white : item.iconColor;
         if (_dragGhostCount != null) _dragGhostCount.text = count > 1 ? count.ToString() : string.Empty;
 
         MoveDragGhost(Input.mousePosition);
     }
 
-    // ==================== 构建界面 ====================
+    // ==================== 界面绑定 ====================
 
-    private void BuildUI()
+    /// <summary>
+    /// 把 Inspector 里拖进来的界面引用接到运行时字段上。
+    /// 界面完全由 Hierarchy 搭好，这里只做接线，不创建任何控件。
+    /// </summary>
+    private void BindUI()
     {
-        // 独立 Canvas：不依赖场景里的 GameFlowCanvas（其缩放配置可能被改动）
-        var canvasGo = new GameObject("InventoryCanvas", typeof(RectTransform));
-        canvasGo.transform.SetParent(transform, false);
-        _canvasRoot = canvasGo;
+        if (uiRoot == null)
+        {
+            Debug.LogError("[InventoryUI] 没有指定界面根节点（uiRoot），请把 Hierarchy 里的背包 Canvas 拖进来。", this);
+            enabled = false;
+            return;
+        }
 
-        _canvas = canvasGo.AddComponent<Canvas>();
-        _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        _canvas.sortingOrder = 100;
+        // 脚本挂在界面根节点上时，关闭背包会连带禁用脚本，之后就按不开背包了
+        if (uiRoot == gameObject)
+        {
+            Debug.LogError("[InventoryUI] 界面根节点不能是挂本脚本的物体。请把本脚本挪到一个常驻物体，界面根节点拖到它的引用里。", this);
+            enabled = false;
+            return;
+        }
 
-        var scaler = canvasGo.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
-        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight = 0.5f;
+        _canvasRoot = uiRoot;
 
-        canvasGo.AddComponent<GraphicRaycaster>();
+        // 拖拽图标需要 Canvas 的 RectTransform 做坐标转换
+        _canvas = uiRoot.GetComponent<Canvas>();
+        if (_canvas == null) _canvas = uiRoot.GetComponentInParent<Canvas>();
 
-        Font font = CurrentFont;
+        _gridContent = gridContent;
+        _capacityText = capacityText;
+        _detailIcon = detailIcon;
+        _detailName = detailName;
+        _detailType = detailType;
+        _detailDesc = detailDesc;
+        _dragGhost = dragGhost;
+        _dragGhostIcon = dragGhostIcon;
+        _dragGhostCount = dragGhostCount;
 
-        // 半透明遮罩：挡住界面下方的点击，避免误触场景
-        Image scrim = InventoryUIFactory.CreateImage("Scrim", canvasGo.transform,
-                                                     new Color(0f, 0f, 0f, 0.55f), InventoryUIFactory.WhiteSprite);
-        scrim.raycastTarget = true;
-        InventoryUIFactory.Stretch(scrim.rectTransform, 0f, 0f, 0f, 0f);
+        // 记住预制体自带的占位图：物品没有图标时回退到它
+        if (_detailIcon != null) _detailDefaultSprite = _detailIcon.sprite;
+        if (_dragGhostIcon != null) _dragGhostDefaultSprite = _dragGhostIcon.sprite;
 
-        // 主面板
-        Image panelImage = InventoryUIFactory.CreateImage("Panel", canvasGo.transform, panelColor,
-                                                          InventoryUIFactory.RoundedSprite, true);
-        panelImage.raycastTarget = true;
-        RectTransform panel = panelImage.rectTransform;
-        panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 0.5f);
-        panel.pivot = new Vector2(0.5f, 0.5f);
-        panel.sizeDelta = new Vector2(1000f, 620f);
-        panel.anchoredPosition = Vector2.zero;
+        if (closeButton != null) closeButton.onClick.AddListener(Close);
+        if (sortByTypeButton != null)
+            sortByTypeButton.onClick.AddListener(() => _inventory?.Sort(InventorySortMode.ByType));
+        if (sortByCountButton != null)
+            sortByCountButton.onClick.AddListener(() => _inventory?.Sort(InventorySortMode.ByCount));
 
-        // 标题
-        Text title = InventoryUIFactory.CreateText("Title", panel, font, "背包", 30, textColor, TextAnchor.MiddleLeft);
-        InventoryUIFactory.PlaceTopLeft(title.rectTransform, 32f, 16f, 300f, 44f);
+        if (_dragGhost != null) _dragGhost.gameObject.SetActive(false);
+        // 跟随图标不能挡住槽位的 OnDrop，这里强制关掉，避免漏勾
+        if (_dragGhostIcon != null) _dragGhostIcon.raycastTarget = false;
 
-        // 容量
-        _capacityText = InventoryUIFactory.CreateText("Capacity", panel, font, "0 / 0", 18,
-                                                      mutedTextColor, TextAnchor.MiddleRight);
-        InventoryUIFactory.PlaceTopRight(_capacityText.rectTransform, 90f, 20f, 160f, 36f);
+        WarnMissingReferences();
+        ClearDetail();
 
-        // 关闭按钮
-        Button closeButton = InventoryUIFactory.CreateButton(panel, "CloseButton", font, "×",
-                                                             new Color(0.20f, 0.21f, 0.25f, 1f), textColor, 26,
-                                                             out _);
-        InventoryUIFactory.PlaceTopRight((RectTransform)closeButton.transform, 24f, 16f, 44f, 44f);
-        closeButton.onClick.AddListener(Close);
-
-        // 分割线
-        Image divider = InventoryUIFactory.CreateImage("Divider", panel, new Color(1f, 1f, 1f, 0.10f),
-                                                       InventoryUIFactory.WhiteSprite);
-        InventoryUIFactory.PlaceTopLeft(divider.rectTransform, 28f, 68f, 944f, 2f);
-
-        BuildGrid(panel, font);
-        BuildDetail(panel, font);
-        BuildBottomBar(panel, font);
-        BuildDragGhost();
-
-        _canvasRoot.SetActive(false);
+        // 初始关闭
+        uiRoot.SetActive(false);
     }
 
-    private void BuildGrid(RectTransform panel, Font font)
+    /// <summary>把最容易漏拖的引用一次性提示出来，避免运行后只有一半界面可用</summary>
+    private void WarnMissingReferences()
     {
-        // ScrollRect 容器（背景 + 裁剪 + 滚动）
-        Image scrollBg = InventoryUIFactory.CreateImage("GridScroll", panel, new Color(0f, 0f, 0f, 0.20f),
-                                                        InventoryUIFactory.RoundedSprite, true);
-        scrollBg.raycastTarget = true; // 让空白区域也能响应滚轮（ScrollRect 需要可命中的图形）
-        RectTransform scrollRectTransform = scrollBg.rectTransform;
-        InventoryUIFactory.PlaceTopLeft(scrollRectTransform, 28f, 84f, 640f, 440f);
-
-        RectTransform viewport = InventoryUIFactory.CreateRect("Viewport", scrollRectTransform);
-        InventoryUIFactory.Stretch(viewport, 2f, 2f, 2f, 2f);
-        viewport.gameObject.AddComponent<RectMask2D>();
-
-        _gridContent = InventoryUIFactory.CreateRect("Content", viewport);
-        _gridContent.anchorMin = new Vector2(0f, 1f);
-        _gridContent.anchorMax = new Vector2(1f, 1f);
-        _gridContent.pivot = new Vector2(0.5f, 1f);
-        _gridContent.anchoredPosition = Vector2.zero;
-        _gridContent.sizeDelta = Vector2.zero;
-
-        var grid = _gridContent.gameObject.AddComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(92f, 92f);
-        grid.spacing = new Vector2(10f, 10f);
-        grid.padding = new RectOffset(10, 10, 10, 10);
-        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        grid.constraintCount = 6;
-        grid.childAlignment = TextAnchor.UpperLeft;
-
-        var fitter = _gridContent.gameObject.AddComponent<ContentSizeFitter>();
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        var scroll = scrollBg.gameObject.AddComponent<ScrollRect>();
-        scroll.viewport = viewport;
-        scroll.content = _gridContent;
-        scroll.horizontal = false;
-        scroll.vertical = true;
-        scroll.movementType = ScrollRect.MovementType.Clamped;
-        scroll.scrollSensitivity = 30f;
-    }
-
-    private void BuildDetail(RectTransform panel, Font font)
-    {
-        Image detail = InventoryUIFactory.CreateImage("Detail", panel, new Color(1f, 1f, 1f, 0.05f),
-                                                      InventoryUIFactory.RoundedSprite, true);
-        RectTransform detailRect = detail.rectTransform;
-        InventoryUIFactory.PlaceTopLeft(detailRect, 692f, 84f, 280f, 440f);
-
-        _detailIcon = InventoryUIFactory.CreateImage("DetailIcon", detailRect, Color.white,
-                                                     InventoryUIFactory.WhiteSprite);
-        RectTransform iconRect = _detailIcon.rectTransform;
-        iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.5f, 1f);
-        iconRect.pivot = new Vector2(0.5f, 1f);
-        iconRect.anchoredPosition = new Vector2(0f, -24f);
-        iconRect.sizeDelta = new Vector2(84f, 84f);
-        _detailIcon.enabled = false;
-
-        _detailName = InventoryUIFactory.CreateText("DetailName", detailRect, font, "未选择", 22,
-                                                     textColor, TextAnchor.MiddleCenter);
-        InventoryUIFactory.PlaceTopLeft(_detailName.rectTransform, 16f, 120f, 248f, 32f);
-
-        _detailType = InventoryUIFactory.CreateText("DetailType", detailRect, font, string.Empty, 15,
-                                                     mutedTextColor, TextAnchor.MiddleCenter);
-        InventoryUIFactory.PlaceTopLeft(_detailType.rectTransform, 16f, 154f, 248f, 26f);
-
-        _detailDesc = InventoryUIFactory.CreateText("DetailDesc", detailRect, font,
-                                                     "把鼠标悬停在物品上查看详情。", 16,
-                                                     mutedTextColor, TextAnchor.UpperLeft);
-        InventoryUIFactory.PlaceTopLeft(_detailDesc.rectTransform, 20f, 196f, 240f, 220f);
-    }
-
-    private void BuildBottomBar(RectTransform panel, Font font)
-    {
-        Button sortByType = InventoryUIFactory.CreateButton(panel, "SortByType", font, "按类型整理",
-                                                             accentColor, new Color(0.05f, 0.10f, 0.07f, 1f), 18,
-                                                             out _);
-        InventoryUIFactory.PlaceBottomLeft((RectTransform)sortByType.transform, 28f, 24f, 150f, 46f);
-        sortByType.onClick.AddListener(() => _inventory?.Sort(InventorySortMode.ByType));
-
-        Button sortByCount = InventoryUIFactory.CreateButton(panel, "SortByCount", font, "按数量整理",
-                                                              new Color(0.24f, 0.26f, 0.32f, 1f), textColor, 18,
-                                                              out _);
-        InventoryUIFactory.PlaceBottomLeft((RectTransform)sortByCount.transform, 190f, 24f, 150f, 46f);
-        sortByCount.onClick.AddListener(() => _inventory?.Sort(InventorySortMode.ByCount));
-
-        Text hint = InventoryUIFactory.CreateText("Hint", panel, font,
-                                                   "左键拖拽：交换 / 合并　Shift+拖拽：拆一半　右键：拆分一半", 15,
-                                                   mutedTextColor, TextAnchor.MiddleLeft);
-        InventoryUIFactory.PlaceBottomLeft(hint.rectTransform, 360f, 24f, 580f, 46f);
-    }
-
-    private void BuildDragGhost()
-    {
-        var ghostGo = new GameObject("DragGhost", typeof(RectTransform), typeof(Image));
-        ghostGo.transform.SetParent(_canvas.transform, false);
-
-        _dragGhost = (RectTransform)ghostGo.transform;
-        _dragGhost.anchorMin = _dragGhost.anchorMax = new Vector2(0.5f, 0.5f);
-        _dragGhost.pivot = new Vector2(0.5f, 0.5f);
-        _dragGhost.sizeDelta = new Vector2(72f, 72f);
-
-        _dragGhostIcon = ghostGo.GetComponent<Image>();
-        _dragGhostIcon.sprite = InventoryUIFactory.WhiteSprite;
-        _dragGhostIcon.type = Image.Type.Sliced;
-        _dragGhostIcon.raycastTarget = false; // 不能挡住槽位的 OnDrop
-
-        _dragGhostCount = InventoryUIFactory.CreateText("Count", ghostGo.transform, CurrentFont, string.Empty,
-                                                        18, textColor, TextAnchor.LowerRight);
-        InventoryUIFactory.Stretch(_dragGhostCount.rectTransform, 4f, 4f, 2f, 2f);
-
-        ghostGo.SetActive(false);
+        if (_gridContent == null)
+            Debug.LogWarning("[InventoryUI] 未指定槽位父节点（gridContent），背包里不会出现格子。", this);
+        if (slotPrefab == null)
+            Debug.LogWarning("[InventoryUI] 未指定槽位预制体（slotPrefab），背包里不会出现格子。", this);
+        if (_capacityText == null)
+            Debug.LogWarning("[InventoryUI] 未指定容量文字（capacityText），容量不会刷新。", this);
+        if (closeButton == null)
+            Debug.LogWarning("[InventoryUI] 未指定关闭按钮（closeButton）。", this);
+        if (_dragGhost == null || _dragGhostIcon == null)
+            Debug.LogWarning("[InventoryUI] 未指定拖拽图标（dragGhost / dragGhostIcon），拖拽时看不到跟随图标。", this);
     }
 }

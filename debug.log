@@ -424,3 +424,6 @@
 [1117/174637.930:INFO:aha\components\metrics\metrics_base.cc:52] [startup] metric: crashReporterStartup, start
 [1117/174637.930:ERROR:electron\shell\browser\api\electron_api_crash_reporter.cc:153] wer register open failed
 [1117/174638.012:INFO:aha\components\metrics\metrics_base.cc:64] [startup] metric: crashReporterStartup, end, latency: 83ms
+[1120/185130.458:INFO:gin\isolate_holder.cc:188] SetPartitionAllocOomCallback and RegisterIsolateHolder
+[1122/215839.226:INFO:gin\isolate_holder.cc:188] SetPartitionAllocOomCallback and RegisterIsolateHolder
+[1123/145319.401:INFO:gin\isolate_holder.cc:188] SetPartitionAllocOomCallback and RegisterIsolateHolder

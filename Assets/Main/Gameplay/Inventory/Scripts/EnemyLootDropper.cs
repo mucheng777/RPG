@@ -69,7 +69,7 @@ public class EnemyLootDropper : MonoBehaviour
         if (lootTable == null) return;
 
         Vector3 point = transform.position + Vector3.up * heightOffset;
-        LootSpawner.Spawn(lootTable, point);
+        LootSpawner.Spawn(lootTable, point, transform);
 
         if (debugLog) Debug.Log($"[Loot] {name} 触发掉落表 {lootTable.name}", this);
     }

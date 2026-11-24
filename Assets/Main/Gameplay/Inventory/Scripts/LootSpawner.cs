@@ -16,7 +16,8 @@ using UnityEngine;
 public static class LootSpawner
 {
     /// <summary>按掉落表在死亡点附近生成全部掉落物。</summary>
-    public static void Spawn(LootTable table, Vector3 deathPosition)
+    /// <param name="ignoreRoot">贴地射线要忽略的物体（死亡敌人自身），避免物品停在尸体头顶</param>
+    public static void Spawn(LootTable table, Vector3 deathPosition, Transform ignoreRoot = null)
     {
         if (table == null) return;
 
@@ -30,7 +31,7 @@ public static class LootSpawner
             Vector2 offset = Random.insideUnitCircle * table.scatterRadius;
             Vector3 point = deathPosition + new Vector3(offset.x, 0f, offset.y);
 
-            SpawnOne(table, drop.item, drop.count, SnapToGround(point, table));
+            SpawnOne(table, drop.item, drop.count, SnapToGround(point, table, ignoreRoot));
         }
     }
 
@@ -68,13 +69,32 @@ public static class LootSpawner
         return pickup;
     }
 
-    /// <summary>从上方往下打一条射线把掉落物贴到地面，打不到就保持原高度。</summary>
-    private static Vector3 SnapToGround(Vector3 point, LootTable table)
+    /// <summary>
+    /// 从上方往下打射线把掉落物贴到地面，打不到就保持原高度。
+    /// 会跳过 ignoreRoot 自身（死亡敌人）的碰撞体：敌人死亡时碰撞体往往还在，
+    /// 直接打射线会命中尸体胶囊，导致物品停在半空。
+    /// </summary>
+    private static Vector3 SnapToGround(Vector3 point, LootTable table, Transform ignoreRoot)
     {
         Vector3 origin = point + Vector3.up * 2f;
-        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 6f, table.groundMask, QueryTriggerInteraction.Ignore))
-            return hit.point + Vector3.up * 0.05f;
+        RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, 6f, table.groundMask, QueryTriggerInteraction.Ignore);
 
-        return point;
+        float nearest = float.MaxValue;
+        bool found = false;
+        Vector3 result = point;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider col = hits[i].collider;
+            if (col == null) continue;
+            if (ignoreRoot != null && col.transform.IsChildOf(ignoreRoot)) continue;
+            if (hits[i].distance >= nearest) continue;
+
+            nearest = hits[i].distance;
+            result = hits[i].point + Vector3.up * 0.05f;
+            found = true;
+        }
+
+        return found ? result : point;
     }
 }

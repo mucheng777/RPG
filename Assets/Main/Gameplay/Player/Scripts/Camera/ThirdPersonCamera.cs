@@ -67,6 +67,12 @@ public class ThirdPersonCamera : MonoBehaviour
     {
         if (followTarget == null) return;
 
+        // 暂停时（背包/暂停菜单，timeScale = 0）deltaTime 为 0。
+        // 此时 Mathf.SmoothDamp 内部会做 (output - originalTo) / deltaTime = 0/0 得到 NaN，
+        // 下一帧 NaN 兜底逻辑就会把 yaw/pitch 清零 → 关闭背包后视角跳到固定的 0 度。
+        // 所以时间不流动时直接不更新相机，保留当前视角。
+        if (Time.deltaTime <= 0f) return;
+
         // 1. 读输入（防御性校验：输入系统在场景重载时序下可能产生 NaN/Infinity）
         Vector2 look = input.Player.Look.ReadValue<Vector2>();
         if (!IsValid(look)) look = Vector2.zero;

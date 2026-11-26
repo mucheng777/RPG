@@ -29,9 +29,20 @@ public class PlayerCombat : MonoBehaviour
     [Tooltip("Animator 攻击状态所在的 Layer 索引（和 AttackHitDetection 保持一致）")]
     [SerializeField] private int attackLayerIndex = 1;
 
+    [Header("软锁定（出手自动转向最近敌人）")]
+    [Tooltip("敌人所在层（只勾 Enemy）")]
+    [SerializeField] private LayerMask enemyMask = 1 << 7;
+
+    [Tooltip("锁定搜索半径")]
+    [SerializeField] private float lockRadius = 4f;
+
+    [Tooltip("只在角色前方这个角度内锁定（度，360=全方向）")]
+    [SerializeField] private float lockAngle = 180f;
+
     private static readonly int AttackTriggerHash = Animator.StringToHash("AttackTrigger");
 
     private Animator _animator;
+    private readonly Collider[] _enemyBuffer = new Collider[8];
 
     private CombatPhase _phase = CombatPhase.Idle;
     private int _comboIndex;   // 当前段 1~4，0=未开始
@@ -50,6 +61,9 @@ public class PlayerCombat : MonoBehaviour
     public void TryAttack()
     {
         if (_animator == null) return;
+
+        // 软锁定：出手瞬间自动转向最近的敌人，不用自己对准
+        FaceNearestEnemy();
 
         switch (_phase)
         {
@@ -148,6 +162,37 @@ public class PlayerCombat : MonoBehaviour
         if (!IsAttackState(state)) return false;
         float nt = state.normalizedTime % 1f;
         return nt >= comboWindowStart;
+    }
+
+    /// <summary>软锁定：转向锁定半径内、前方扇形里最近的敌人</summary>
+    private void FaceNearestEnemy()
+    {
+        int count = Physics.OverlapSphereNonAlloc(transform.position, lockRadius, _enemyBuffer, enemyMask);
+
+        Transform best = null;
+        float bestSqr = float.MaxValue;
+
+        for (int i = 0; i < count; i++)
+        {
+            Vector3 dir = _enemyBuffer[i].transform.position - transform.position;
+            dir.y = 0f;
+            float sqr = dir.sqrMagnitude;
+            if (sqr < 0.0001f) continue;
+            if (Vector3.Angle(transform.forward, dir) > lockAngle * 0.5f) continue;
+
+            if (sqr < bestSqr)
+            {
+                bestSqr = sqr;
+                best = _enemyBuffer[i].transform;
+            }
+        }
+
+        if (best == null) return;
+
+        Vector3 look = best.position - transform.position;
+        look.y = 0f;
+        if (look.sqrMagnitude > 0.0001f)
+            transform.rotation = Quaternion.LookRotation(look);
     }
 
     private static bool IsAttackState(AnimatorStateInfo state)

@@ -60,16 +60,16 @@ AnimatorStateMachine:
     m_Position: {x: 40, y: 150, z: 0}
   - serializedVersion: 1
     m_State: {fileID: -173046216028035981}
-    m_Position: {x: 420, y: 210, z: 0}
+    m_Position: {x: 400, y: 270, z: 0}
   - serializedVersion: 1
     m_State: {fileID: -3619629367871818419}
-    m_Position: {x: 430, y: 100, z: 0}
+    m_Position: {x: 430, y: 160, z: 0}
   - serializedVersion: 1
     m_State: {fileID: -4481473469636536846}
-    m_Position: {x: 420, y: 300, z: 0}
+    m_Position: {x: 310, y: 370, z: 0}
   - serializedVersion: 1
     m_State: {fileID: -2174122851642724397}
-    m_Position: {x: 370, y: 390, z: 0}
+    m_Position: {x: 160, y: 470, z: 0}
   m_ChildStateMachines: []
   m_AnyStateTransitions: []
   m_EntryTransitions: []
@@ -487,24 +487,6 @@ AnimatorController:
   m_Name: PlayerAnimatorController
   serializedVersion: 5
   m_AnimatorParameters:
-  - m_Name: StopType
-    m_Type: 3
-    m_DefaultFloat: 0
-    m_DefaultInt: 0
-    m_DefaultBool: 0
-    m_Controller: {fileID: 9100000}
-  - m_Name: IsStarting
-    m_Type: 4
-    m_DefaultFloat: 0
-    m_DefaultInt: 0
-    m_DefaultBool: 0
-    m_Controller: {fileID: 9100000}
-  - m_Name: IsStopping
-    m_Type: 4
-    m_DefaultFloat: 0
-    m_DefaultInt: 0
-    m_DefaultBool: 0
-    m_Controller: {fileID: 9100000}
   - m_Name: Speed
     m_Type: 1
     m_DefaultFloat: 0
@@ -512,12 +494,6 @@ AnimatorController:
     m_DefaultBool: 0
     m_Controller: {fileID: 9100000}
   - m_Name: AttackTrigger
-    m_Type: 9
-    m_DefaultFloat: 0
-    m_DefaultInt: 0
-    m_DefaultBool: 0
-    m_Controller: {fileID: 9100000}
-  - m_Name: MoveTrigger
     m_Type: 9
     m_DefaultFloat: 0
     m_DefaultInt: 0

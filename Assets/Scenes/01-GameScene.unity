@@ -2558,9 +2558,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   enemyPrefab: {fileID: 5167192318253392165, guid: c96209abb0816ab49ac104105dcc13ac,
     type: 3}
-  countPerWave: 3
-  spawnRadius: 4
-  waveInterval: 5
+  countPerWave: 1
+  spawnRadius: 6
+  waveInterval: 6
 --- !u!4 &522997142
 Transform:
   m_ObjectHideFlags: 0
@@ -3905,9 +3905,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   enemyPrefab: {fileID: 4909425966813808404, guid: 8acf9c5c77dedab4d8f8b509c94a034a,
     type: 3}
-  countPerWave: 3
-  spawnRadius: 4
-  waveInterval: 3
+  countPerWave: 1
+  spawnRadius: 5
+  waveInterval: 6
 --- !u!1 &1094371838
 GameObject:
   m_ObjectHideFlags: 0
@@ -8092,7 +8092,7 @@ Transform:
   m_GameObject: {fileID: 2108785356}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.05, y: 0, z: 0}
+  m_LocalPosition: {x: -2.05, y: 0, z: -2.9}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -8154,6 +8154,11 @@ MonoBehaviour:
   comboWindowStart: 0.4
   inputBufferTime: 0.15
   attackLayerIndex: 1
+  enemyMask:
+    serializedVersion: 2
+    m_Bits: 128
+  lockRadius: 4
+  lockAngle: 180
 --- !u!114 &2108785365
 MonoBehaviour:
   m_ObjectHideFlags: 0

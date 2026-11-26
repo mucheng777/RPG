@@ -20,7 +20,7 @@ public class PlayerCombat : MonoBehaviour
 
     [Header("连击窗口")]
     [Tooltip("当前段 Attack 动画播到此进度后才允许推进下一段（normalizedTime）")]
-    [SerializeField] private float comboWindowStart = 0.4f;
+    [SerializeField] private float comboWindowStart = 0.75f;
 
     [Header("输入缓冲")]
     [Tooltip("缓冲输入有效时长（秒），超时丢弃")]
@@ -48,6 +48,7 @@ public class PlayerCombat : MonoBehaviour
     private int _comboIndex;   // 当前段 1~4，0=未开始
     private bool _comboBuffered;
     private float _bufferTimer;
+    private float _attackStartTime;   // 本次攻击的起手时间
 
     public bool IsAttacking => _phase != CombatPhase.Idle;
 
@@ -93,7 +94,10 @@ public class PlayerCombat : MonoBehaviour
         bool inAttack = IsAttackState(state);
 
         // 1. Phase 同步：Animator 不在任何 Attack 状态 → 攻击必然结束
-        if (_phase == CombatPhase.Attacking && !inAttack)
+        //    但刚出招的 0.1 秒内 Animator 还没切进 Attack（SetTrigger 要到下一帧才生效），
+        //    此时读到的仍是旧状态，不能当成"攻击结束"，否则移动输入不归零会一路平移、连击也推不动
+        bool justStarted = Time.time - _attackStartTime < 0.15f;
+        if (_phase == CombatPhase.Attacking && !inAttack && !justStarted)
         {
             if (_comboBuffered)
             {
@@ -131,12 +135,14 @@ public class PlayerCombat : MonoBehaviour
         _comboIndex = stage;
         _phase = CombatPhase.Attacking;
         _comboBuffered = false;
+        _attackStartTime = Time.time;
         if (_animator != null) _animator.SetTrigger(AttackTriggerHash);
     }
 
     private void AdvanceCombo()
     {
         _comboIndex++;
+        _attackStartTime = Time.time;
         if (_animator != null) _animator.SetTrigger(AttackTriggerHash);
     }
 
@@ -174,6 +180,10 @@ public class PlayerCombat : MonoBehaviour
 
         for (int i = 0; i < count; i++)
         {
+            // 已死亡的敌人（死亡动画/尸体停留期间）不再作为锁定目标
+            EnemyBrain brain = _enemyBuffer[i].GetComponentInParent<EnemyBrain>();
+            if (brain != null && brain.IsDead) continue;
+
             Vector3 dir = _enemyBuffer[i].transform.position - transform.position;
             dir.y = 0f;
             float sqr = dir.sqrMagnitude;

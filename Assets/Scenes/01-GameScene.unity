@@ -8247,10 +8247,14 @@ MonoBehaviour:
   hitWindowStart: 0.35
   hitWindowEnd: 0.65
   attackLayerIndex: 1
-  stage1Damage: 20
-  stage2Damage: 30
-  stage3Damage: 40
-  stage4Damage: 55
+  stage1Damage: 10
+  stage2Damage: 15
+  stage3Damage: 15
+  stage4Damage: 20
+  hitStopDuration: 0.06
+  hitStopScale: 0.04
+  shakeDuration: 0.1
+  shakeMagnitude: 0.08
 --- !u!114 &2108785373
 MonoBehaviour:
   m_ObjectHideFlags: 0

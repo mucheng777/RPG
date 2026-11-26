@@ -622,6 +622,10 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 1244888285530817724}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e172106cd769b464ba3337ba291dc199,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 4269353726777535413}
   m_SourcePrefab: {fileID: 100100000, guid: e172106cd769b464ba3337ba291dc199, type: 3}
 --- !u!1 &4909425966813808404 stripped
 GameObject:
@@ -697,7 +701,6 @@ MonoBehaviour:
   findTargetRadius: 100
   turnSpeed: 540
   repathInterval: 0.2
-  debugLog: 1
 --- !u!114 &1041248969565797230
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -791,6 +794,22 @@ MonoBehaviour:
   dropDelay: 0
   heightOffset: 0.6
   debugLog: 1
+--- !u!114 &4269353726777535413
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4909425966813808404}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d2bc86dba3554dc4ba8d1fb0835bc683, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  flashDuration: 0.08
+  flashColor: {r: 3, g: 3, b: 3, a: 1}
+  knockbackDistance: 0.35
+  knockbackDuration: 0.12
 --- !u!4 &5722412988165807534 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: e172106cd769b464ba3337ba291dc199,

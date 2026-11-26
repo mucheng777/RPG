@@ -36,8 +36,17 @@ public class ThirdPersonCamera : MonoBehaviour
     private float _currentDist;
     private float _distVel;
 
+    // 命中震动
+    private float _shakeTimer;
+    private float _shakeDuration;
+    private float _shakeMagnitude;
+
+    /// <summary>全局唯一相机，供打击反馈等系统调用（场景只有一个相机）</summary>
+    public static ThirdPersonCamera Instance { get; private set; }
+
     void Awake()
     {
+        Instance = this;
         if (input == null) input = new PlayerControls();
         _currentPos = transform.position;
         _currentDist = distance;
@@ -61,6 +70,20 @@ public class ThirdPersonCamera : MonoBehaviour
     void OnDisable()
     {
         input.Disable();
+    }
+
+    void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
+    }
+
+    /// <summary>命中震动：duration 秒内线性衰减抖动，magnitude 为最大偏移（米）</summary>
+    public void Shake(float duration, float magnitude)
+    {
+        if (duration <= 0f) return;
+        _shakeDuration = duration;
+        _shakeTimer = duration;
+        _shakeMagnitude = magnitude;
     }
 
     void LateUpdate()
@@ -134,6 +157,14 @@ public class ThirdPersonCamera : MonoBehaviour
         // 9. 让相机看向目标（稍微偏上）
         Vector3 lookPoint = followTarget.position + Vector3.up * targetHeight;
         transform.LookAt(lookPoint);
+
+        // 10. 命中震动：叠加在最终位置上，用未缩放时间，命中卡顿时也能正常抖动
+        if (_shakeTimer > 0f)
+        {
+            _shakeTimer -= Time.unscaledDeltaTime;
+            float amp = _shakeMagnitude * Mathf.Clamp01(_shakeTimer / _shakeDuration);
+            transform.position += Random.insideUnitSphere * amp;
+        }
     }
 
     /// <summary>

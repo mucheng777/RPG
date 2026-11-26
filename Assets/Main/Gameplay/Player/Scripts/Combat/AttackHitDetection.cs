@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -45,10 +46,24 @@ public class AttackHitDetection : MonoBehaviour
     [Min(0f)] [SerializeField] private float stage3Damage = 40f;
     [Min(0f)] [SerializeField] private float stage4Damage = 55f;
 
+    [Header("打击感（命中反馈）")]
+    [Tooltip("命中卡顿时长（秒，真实时间）")]
+    [SerializeField] private float hitStopDuration = 0.06f;
+
+    [Tooltip("卡顿期间的时间缩放（越小越顿）")]
+    [SerializeField] private float hitStopScale = 0.05f;
+
+    [Tooltip("相机震动时长（秒）")]
+    [SerializeField] private float shakeDuration = 0.15f;
+
+    [Tooltip("相机震动幅度（米）")]
+    [SerializeField] private float shakeMagnitude = 0.12f;
+
     private Animator _animator;
     private readonly Collider[] _hitBuffer = new Collider[16];
     private bool _hitDone;
     private int _lastStage;
+    private Coroutine _hitStopRoutine;
 
     void Awake()
     {
@@ -101,6 +116,7 @@ public class AttackHitDetection : MonoBehaviour
         Vector3 center = transform.TransformPoint(hitOffset);
         int count = Physics.OverlapSphereNonAlloc(center, hitRadius, _hitBuffer, hitMask);
 
+        bool hitAny = false;
         for (int i = 0; i < count; i++)
         {
             // 模型是多层子物体：沿碰撞体向上找受伤接口
@@ -110,9 +126,46 @@ public class AttackHitDetection : MonoBehaviour
             // 防止误伤自己（玩家自己也实现了 IDamageable）
             if (target is Component component && component.transform.root == transform.root) continue;
 
+            // 已死亡的尸体不再受击，也不触发打击反馈（否则砍尸体一样会顿帧）
+            if (target is IHealthSystem health && !health.IsAlive) continue;
+
             // 只通过接口交互：攻击方不知道、也不需要知道对方血量怎么扣
             target.TakeDamage(new DamageInfo(damage, transform, DamageType.Physical));
+            hitAny = true;
         }
+
+        // 至少砍中一个活目标 → 顿帧 + 震屏
+        if (hitAny)
+        {
+            HitStop();
+            if (ThirdPersonCamera.Instance != null)
+                ThirdPersonCamera.Instance.Shake(shakeDuration, shakeMagnitude);
+        }
+    }
+
+    /// <summary>命中顿帧：短暂降低 timeScale，制造"砍中了"的重量感</summary>
+    private void HitStop()
+    {
+        // 已有卡顿在进行中，或游戏本身处于暂停（timeScale ≈ 0）时不重复触发
+        if (_hitStopRoutine != null || Time.timeScale < 0.5f) return;
+        _hitStopRoutine = StartCoroutine(HitStopRoutine());
+    }
+
+    private IEnumerator HitStopRoutine()
+    {
+        Time.timeScale = hitStopScale;
+        yield return new WaitForSecondsRealtime(hitStopDuration);
+        Time.timeScale = 1f;
+        _hitStopRoutine = null;
+    }
+
+    // 组件禁用/退出 Play 时必须还原时间，否则 timeScale 会永久卡在 0.05 变成慢动作
+    void OnDisable()
+    {
+        if (_hitStopRoutine == null) return;
+        StopCoroutine(_hitStopRoutine);
+        _hitStopRoutine = null;
+        Time.timeScale = 1f;
     }
 
     // Scene 视图选中时画出命中球，方便调偏移/半径

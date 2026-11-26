@@ -62,15 +62,10 @@ public class EnemyBrain : MonoBehaviour, IPoolable
     [Tooltip("寻路目的地刷新间隔（秒）。玩家每帧都在动，但每帧 SetDestination 浪费，定期追一次就够")]
     [SerializeField] private float repathInterval = 0.2f;
 
-    [Header("调试")]
-    [Tooltip("开发期打印状态切换/索敌/攻击日志，打包前关闭")]
-    [SerializeField] private bool debugLog = true;
-
     private EnemyHealth _health;
     private NavMeshAgent _agent;
     private State _state = State.Idle;
     private float _attackTimer;
-    private float _distLogTimer;
     private float _repathTimer;
 
     // ==================== 对外事件（给 EnemyAnimator / 掉落 / 其他扩展） ====================
@@ -161,8 +156,6 @@ public class EnemyBrain : MonoBehaviour, IPoolable
     private void SetState(State next)
     {
         if (_state == next) return;
-        if (debugLog)
-            Debug.Log($"[EnemyBrain] {name}: {_state} → {next}（距目标 {(target != null ? Vector3.Distance(transform.position, target.position).ToString("F1") : "无目标")}m）", this);
         _state = next;
 
         // 移动开关集中在状态切换处：只有 Chase 让 Agent 跑，其余状态全部站定。
@@ -202,17 +195,6 @@ public class EnemyBrain : MonoBehaviour, IPoolable
             SetState(State.Attack);
             _attackTimer = profile.attackInterval;
             return;
-        }
-
-        // 节流距离日志：直观看到追击过程中距离卡在哪（排查"贴身但进不了攻击态"）
-        if (debugLog)
-        {
-            _distLogTimer -= Time.deltaTime;
-            if (_distLogTimer <= 0f)
-            {
-                _distLogTimer = 0.5f;
-                Debug.Log($"[EnemyBrain] {name} 追击中，距目标 {Mathf.Sqrt(sqrDist):F2}m（进入攻击需 ≤ {profile.attackRange}m）", this);
-            }
         }
 
         // 路径怎么绕、怎么贴地、怎么躲开其他怪，都是 Agent 的事；
@@ -275,8 +257,6 @@ public class EnemyBrain : MonoBehaviour, IPoolable
         if (count > 0)
         {
             target = _targetBuffer[0].transform;
-            if (debugLog)
-                Debug.Log($"[EnemyBrain] {name} 已锁定目标：{target.name}", this);
         }
     }
 

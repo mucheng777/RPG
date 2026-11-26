@@ -1,6 +1,11 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+/// <summary>
+/// 角色移动控制（极简版）。
+/// 起步/停步动画过渡已从 Animator Controller 删除，
+/// 所以 OnStartMoving/OnStopMoving 事件、停步锁、SetStopAnimating 全部移除。
+/// </summary>
 public class PlayerLocomotion : MonoBehaviour
 {
     private CharacterController _controller;
@@ -21,20 +26,10 @@ public class PlayerLocomotion : MonoBehaviour
     private float _verticalVelocity;
     private float _cachedCameraYaw;
 
-    private bool _wasMoving;
-    private bool _wasSprinting;
-    private bool _isInStopAnimation;
-
-    // ===== 事件声明 =====
-    public event System.Action OnStartMoving;       //开始移动事件
-    public event System.Action<bool> OnStopMoving;  //停止移动事件
-    public event System.Action OnForceCancelStop;   //强制取消停止动画事件
-
     void Awake()
     {
         _controller = GetComponent<CharacterController>();
 
-        // 如果 Inspector 里没拖相机，就自动找主相机
         if (_cameraTransform == null)
         {
             var mainCam = Camera.main;
@@ -43,7 +38,6 @@ public class PlayerLocomotion : MonoBehaviour
         }
     }
 
-    public void SetStopAnimating(bool value) => _isInStopAnimation = value;
     public void SetMoveInput(Vector2 input) => _moveInput = input;
     public void SetSprint(bool value) => _isSprinting = value;
 
@@ -52,17 +46,11 @@ public class PlayerLocomotion : MonoBehaviour
     public float WalkSpeed => walkSpeed;
     public float SprintSpeed => sprintSpeed;
 
-    //======================主逻辑================================
     public void UpdateLocomotion()
     {
         CacheCameraYaw();
         GroundCheck();
         ApplyGravity();
-
-        // 停步锁
-        if (ProcessStopAnimationLock())
-            return;
-
         UpdateTargetSpeed();
 
         Vector3 finalMove = Vector3.zero;
@@ -80,48 +68,14 @@ public class PlayerLocomotion : MonoBehaviour
         finalMove.y = _verticalVelocity;
 
         _controller.Move(finalMove * Time.deltaTime);
-
-        UpdateMoveStateAndNotify();
     }
-    //======================================================================
 
-    /// <summary>
-    /// 直接拿相机的 Y 轴旋转当 Yaw，简单够用
-    /// </summary>
     private void CacheCameraYaw()
     {
         if (_cameraTransform != null)
             _cachedCameraYaw = _cameraTransform.eulerAngles.y;
         else
-            _cachedCameraYaw = transform.eulerAngles.y; // fallback 到自己
-    }
-
-    private bool ProcessStopAnimationLock()
-    {
-        if (!_isInStopAnimation) return false;
-
-        if (!_wasMoving && IsMoving)
-        {
-            _isInStopAnimation = false;
-            OnForceCancelStop?.Invoke();
-            OnStartMoving?.Invoke();
-            _wasMoving = true;
-            _wasSprinting = _isSprinting;
-            return false;
-        }
-        else
-        {
-            _moveInput = Vector2.zero;
-            _currentMaxSpeed = 0f;
-            _targetRot = transform.eulerAngles.y;
-
-            // 停步锁定期间只处理重力
-            _controller.Move(Vector3.up * _verticalVelocity * Time.deltaTime);
-
-            _wasMoving = false;
-            _wasSprinting = false;
-            return true;
-        }
+            _cachedCameraYaw = transform.eulerAngles.y;
     }
 
     private void UpdateTargetSpeed()
@@ -129,32 +83,11 @@ public class PlayerLocomotion : MonoBehaviour
         _currentMaxSpeed = _isSprinting ? sprintSpeed : walkSpeed;
     }
 
-    /// <summary>
-    /// 只计算水平移动向量，不调用 Move
-    /// </summary>
     private Vector3 GetHorizontalMove()
     {
         Vector3 inputDir = new Vector3(_moveInput.x, 0f, _moveInput.y).normalized;
         Vector3 moveDir = Quaternion.Euler(0f, _cachedCameraYaw, 0f) * inputDir;
         return moveDir * _currentMaxSpeed;
-    }
-
-
-    private void UpdateMoveStateAndNotify()
-    {
-        bool isMovingNow = IsMoving;
-
-        if (!_wasMoving && isMovingNow)
-        {
-            OnStartMoving?.Invoke();
-        }
-        else if (_wasMoving && !isMovingNow)
-        {
-            OnStopMoving?.Invoke(_wasSprinting);
-        }
-
-        _wasMoving = isMovingNow;
-        _wasSprinting = _isSprinting;
     }
 
     void Rotate()

@@ -39,14 +39,11 @@ public class AttackHitDetection : MonoBehaviour
     [Tooltip("Animator 攻击层索引")]
     [SerializeField] private int attackLayerIndex = 1;
 
-    [Header("伤害")]
-    [Tooltip("第一段伤害")]
-    [Min(0f)]
-    [SerializeField] private float stage1Damage = 20f;
-
-    [Tooltip("第二段伤害（重击更高）")]
-    [Min(0f)]
-    [SerializeField] private float stage2Damage = 30f;
+    [Header("伤害（每段可单独调，后面的段可以更高做重击感）")]
+    [Min(0f)] [SerializeField] private float stage1Damage = 20f;
+    [Min(0f)] [SerializeField] private float stage2Damage = 30f;
+    [Min(0f)] [SerializeField] private float stage3Damage = 40f;
+    [Min(0f)] [SerializeField] private float stage4Damage = 55f;
 
     private Animator _animator;
     private readonly Collider[] _hitBuffer = new Collider[16];
@@ -65,8 +62,10 @@ public class AttackHitDetection : MonoBehaviour
         AnimatorStateInfo state = _animator.GetCurrentAnimatorStateInfo(attackLayerIndex);
 
         int stage = 0;
-        if (state.IsName("Attack1")) stage = 1;
+        if      (state.IsName("Attack1")) stage = 1;
         else if (state.IsName("Attack2")) stage = 2;
+        else if (state.IsName("Attack3")) stage = 3;
+        else if (state.IsName("Attack4")) stage = 4;
 
         // 进入新段或离开攻击状态 → 复位单次命中锁
         if (stage == 0 || stage != _lastStage)
@@ -89,7 +88,14 @@ public class AttackHitDetection : MonoBehaviour
     /// </summary>
     public void PerformHit(int stage)
     {
-        float damage = stage == 2 ? stage2Damage : stage1Damage;
+        float damage = stage switch
+        {
+            1 => stage1Damage,
+            2 => stage2Damage,
+            3 => stage3Damage,
+            4 => stage4Damage,
+            _ => stage1Damage
+        };
         if (!DamageCalculator.IsValidDamage(damage)) return;
 
         Vector3 center = transform.TransformPoint(hitOffset);

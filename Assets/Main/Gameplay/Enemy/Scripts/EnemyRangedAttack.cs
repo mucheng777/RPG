@@ -31,6 +31,7 @@ public class EnemyRangedAttack : MonoBehaviour
     [SerializeField] private float aimHeight = 1f;
 
     private EnemyBrain _brain;
+    private Transform _pendingTarget;
 
     void Awake()
     {
@@ -39,23 +40,33 @@ public class EnemyRangedAttack : MonoBehaviour
 
     void OnEnable()
     {
-        _brain.AttackExecuted += HandleAttack;
+        _brain.AttackExecuted += HandleAttackStart;
     }
 
     void OnDisable()
     {
-        _brain.AttackExecuted -= HandleAttack;
+        _brain.AttackExecuted -= HandleAttackStart;
+        _pendingTarget = null;
     }
 
-    /// <summary>Brain 出手时回调：在发射点生成一枚炸弹并注入飞行参数</summary>
-    private void HandleAttack()
+    /// <summary>出手瞬间：只记录目标，不发射。动画播到吐弹帧才真正开枪。</summary>
+    private void HandleAttackStart()
     {
-        if (projectilePrefab == null || _brain.Target == null || _brain.Profile == null) return;
+        _pendingTarget = _brain.Target;
+    }
+
+    /// <summary>动画事件（Spitter_Spit.anim 的 0.8 秒吐弹瞬间）：此时才生成子弹。</summary>
+    public void Shoot()
+    {
+        Transform target = _pendingTarget;
+        _pendingTarget = null;
+        if (target == null) return;
+        if (projectilePrefab == null || _brain.Profile == null) return;
         if (PoolManager.Instance == null) return;
 
         // TransformPoint：偏移跟随自身旋转，保证怪物转身后发射点仍在嘴部
         Vector3 spawnPos = transform.TransformPoint(spawnOffset);
-        Vector3 aimPos = _brain.Target.position + Vector3.up * aimHeight;
+        Vector3 aimPos = target.position + Vector3.up * aimHeight;
         Vector3 dir = (aimPos - spawnPos).normalized;
 
         GameObject go = PoolManager.Instance.Spawn(projectilePrefab, spawnPos, Quaternion.LookRotation(dir));
